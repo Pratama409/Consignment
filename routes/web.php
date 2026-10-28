@@ -1,0 +1,46 @@
+<?php
+
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\MasterData\ImportController;
+use App\Http\Controllers\MasterData\ItemController;
+use App\Http\Controllers\MasterData\ItemExportController;
+use App\Http\Controllers\MasterData\ReferenceController;
+use App\Http\Controllers\MasterData\UnitController;
+use Illuminate\Support\Facades\Route;
+
+Route::middleware('guest')->group(function () {
+    Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
+    Route::post('/login', [AuthenticatedSessionController::class, 'store']);
+});
+
+Route::middleware('auth')->group(function () {
+    Route::get('/', fn () => to_route('items.index'))->name('home');
+    Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+    Route::get('/master-data/satuan', [UnitController::class, 'index'])->name('units.index');
+    Route::post('/master-data/satuan', [UnitController::class, 'store'])->name('units.store');
+    Route::put('/master-data/satuan/{unit}', [UnitController::class, 'update'])->name('units.update');
+    Route::patch('/master-data/satuan/{unit}/status', [UnitController::class, 'status'])->name('units.status');
+    foreach (['vendors' => 'vendor', 'locations' => 'lokasi'] as $resource => $path) {
+        Route::get('/master-data/'.$path, [ReferenceController::class, 'index'])->defaults('resource', $resource)->name($resource.'.index');
+        Route::post('/master-data/'.$path, [ReferenceController::class, 'store'])->defaults('resource', $resource)->name($resource.'.store');
+        Route::put('/master-data/'.$path.'/{record}', [ReferenceController::class, 'update'])->defaults('resource', $resource)->whereNumber('record')->name($resource.'.update');
+        Route::patch('/master-data/'.$path.'/{record}/status', [ReferenceController::class, 'status'])->defaults('resource', $resource)->whereNumber('record')->name($resource.'.status');
+    }
+    Route::get('/master-data/barang', [ItemController::class, 'index'])->name('items.index');
+    Route::get('/master-data/barang/export', [ItemExportController::class, 'index'])->name('items.export');
+    Route::get('/master-data/barang/tambah', [ItemController::class, 'create'])->name('items.create');
+    Route::post('/master-data/barang', [ItemController::class, 'store'])->name('items.store');
+    Route::get('/master-data/barang/{item}', [ItemController::class, 'show'])->whereNumber('item')->name('items.show');
+    Route::get('/master-data/barang/{item}/edit', [ItemController::class, 'edit'])->whereNumber('item')->name('items.edit');
+    Route::put('/master-data/barang/{item}', [ItemController::class, 'update'])->whereNumber('item')->name('items.update');
+    Route::patch('/master-data/barang/{item}/status', [ItemController::class, 'status'])->whereNumber('item')->name('items.status');
+    Route::get('/master-data/import', [ImportController::class, 'index'])->name('imports.index');
+    Route::get('/master-data/import/template', [ItemExportController::class, 'template'])->name('imports.template');
+    Route::post('/master-data/import', [ImportController::class, 'store'])->name('imports.store');
+    Route::get('/master-data/import/{import}', [ImportController::class, 'show'])->whereNumber('import')->name('imports.show');
+    Route::put('/master-data/import/{import}/options', [ImportController::class, 'options'])->whereNumber('import')->name('imports.options');
+    Route::put('/master-data/import/{import}/groups/{group}', [ImportController::class, 'decision'])->whereNumber('import')->name('imports.decision');
+    Route::put('/master-data/import/{import}/rows/{row}', [ImportController::class, 'correction'])->whereNumber('import')->whereNumber('row')->name('imports.correction');
+    Route::post('/master-data/import/{import}/confirm', [ImportController::class, 'confirm'])->whereNumber('import')->name('imports.confirm');
+    Route::get('/master-data/import/{import}/export', [ImportController::class, 'export'])->whereNumber('import')->name('imports.export');
+});
