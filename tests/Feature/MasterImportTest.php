@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\MasterData\SaveItem;
 use App\Enums\UserRole;
+use App\Models\Category;
 use App\Models\Item;
 use App\Models\Location;
 use App\Models\MasterDataImport;
@@ -236,6 +237,71 @@ class MasterImportTest extends TestCase
         $this->assertDatabaseCount('stock_item_locations', 0);
     }
 
+    public function test_category_import_export_and_blank_reimport_preserve_explicit_classification(): void
+    {
+        $category = Category::create(['code' => 'FILTER', 'name' => 'Filter']);
+        $batch = $this->upload([$this->row(['CATEGORY_CODE' => ' filter '])]);
+        $this->assertSame($category->id, $this->plan($batch)['groups'][0]['data']['category_id']);
+        $this->post(route('imports.confirm', $batch))->assertSessionHasNoErrors();
+        $item = Item::sole();
+        $this->assertSame($category->id, $item->category_id);
+        $export = $this->get(route('items.export', ['category' => $category->id]));
+        $path = $this->temporaryFile();
+        file_put_contents($path, $export->streamedContent());
+        $book = IOFactory::load($path);
+        $this->assertSame('CATEGORY_CODE', $book->getActiveSheet()->getCell('L1')->getValue());
+        $this->assertSame('FILTER', $book->getActiveSheet()->getCell('L2')->getValue());
+        $book->disconnectWorksheets();
+        $update = $this->upload([$this->row(['ITEM_CODE' => $item->item_code, 'CATEGORY_CODE' => ''])]);
+        $this->post(route('imports.confirm', $update))->assertSessionHasNoErrors();
+        $this->assertSame($category->id, $item->fresh()->category_id);
+        $this->assertDatabaseCount('categories', 1);
+    }
+
+    public function test_unknown_category_is_not_created_automatically_and_can_be_corrected(): void
+    {
+        $category = Category::create(['code' => 'GET', 'name' => 'GET']);
+        $batch = $this->upload([$this->row(['CATEGORY_CODE' => 'Bushing description from legacy data'])], true);
+        $this->assertSame('invalid', $this->plan($batch)['groups'][0]['state']);
+        $this->post(route('imports.confirm', $batch))->assertSessionHasErrors('confirmation');
+        $this->assertDatabaseCount('items', 0);
+        $this->assertDatabaseCount('categories', 1);
+        $this->put(route('imports.correction', [$batch, 2]), ['skip' => false, 'CATEGORY_CODE' => 'GET'])->assertSessionHasNoErrors();
+        $this->post(route('imports.confirm', $batch))->assertSessionHasNoErrors();
+        $this->assertSame($category->id, Item::sole()->category_id);
+    }
+
+    public function test_inactive_category_is_rejected_and_conflicting_categories_are_not_deduplicated(): void
+    {
+        Category::create(['code' => 'OLD', 'name' => 'Old', 'is_active' => false]);
+        $batch = $this->upload([$this->row(['CATEGORY_CODE' => 'OLD'])]);
+        $this->assertArrayHasKey('CATEGORY_CODE', $this->plan($batch)['groups'][0]['rows'][0]['errors']);
+        Category::create(['code' => 'A', 'name' => 'A']);
+        Category::create(['code' => 'B', 'name' => 'B']);
+        $other = $this->upload([$this->row(['CATEGORY_CODE' => 'A']), $this->row(['CATEGORY_CODE' => 'B'])]);
+        $group = $this->plan($other)['groups'][0];
+        $this->assertSame(0, $group['duplicate_count']);
+        $this->put(route('imports.decision', [$other, $group['id']]), ['action' => 'create'])->assertSessionHasNoErrors();
+        $this->post(route('imports.confirm', $other))->assertSessionHasErrors('confirmation');
+        $this->assertDatabaseCount('items', 0);
+    }
+
+    public function test_category_alias_is_supported_but_unknown_columns_require_separate_confirmation(): void
+    {
+        $category = Category::create(['code' => 'BATTERY', 'name' => 'Battery']);
+        $columns = [...array_map(fn ($column) => $column === 'CATEGORY_CODE' ? 'CATEGORY' : $column, WorkbookReader::COLUMNS), 'LEGACY_PRICE'];
+        $file = $this->workbook([$this->row(['CATEGORY' => 'BATTERY', 'LEGACY_PRICE' => '15000'])], [], $columns);
+        $this->post(route('imports.store'), ['file' => $file, 'create_missing' => false, 'minimum_stock' => '0'])->assertSessionHasNoErrors();
+        $batch = MasterDataImport::latest('id')->firstOrFail();
+        $this->assertSame(['LEGACY_PRICE'], $batch->data['ignored_columns']);
+        $this->get(route('imports.show', $batch))->assertInertia(fn (Assert $page) => $page->where('batch.ignored_columns.0', 'LEGACY_PRICE')->where('groups.data.0.data.category_id', $category->id));
+        $this->post(route('imports.confirm', $batch), ['acknowledge_skipped' => true])->assertSessionHasErrors('confirmation');
+        $this->assertDatabaseCount('items', 0);
+        $this->post(route('imports.confirm', $batch), ['acknowledge_ignored_columns' => true])->assertSessionHasNoErrors();
+        $this->assertSame($category->id, Item::sole()->category_id);
+        $this->assertSame(['LEGACY_PRICE'], $batch->fresh()->result['ignored_columns']);
+    }
+
     private function row(array $changes = []): array
     {
         return [...['ITEM_CODE' => '', 'VENDOR' => 'WAREHOUSE', 'PART_NUMBER' => '000123.', 'DESCRIPTION' => 'Bearing', 'LOCATION' => 'UNASSIGNED', 'UOM' => 'PC', 'MATERIAL_TYPE' => 'STOCK', 'MINIMUM_STOCK' => '', 'IS_ACTIVE' => '', 'TRACKING_TYPE' => '', 'RELATION_ACTIVE' => ''], ...$changes];
@@ -266,11 +332,11 @@ class MasterImportTest extends TestCase
         return $path;
     }
 
-    private function workbook(array $rows, array $inferTypes = []): UploadedFile
+    private function workbook(array $rows, array $inferTypes = [], ?array $columns = null): UploadedFile
     {
         $book = new Spreadsheet;
         $sheet = $book->getActiveSheet();
-        foreach (WorkbookReader::COLUMNS as $index => $column) {
+        foreach ($columns ?? WorkbookReader::COLUMNS as $index => $column) {
             $sheet->setCellValueExplicit([$index + 1, 1], $column, DataType::TYPE_STRING);
             foreach ($rows as $rowIndex => $row) {
                 if (in_array($column, $inferTypes, true)) {

@@ -22,18 +22,28 @@ const props = defineProps({
     can: Object,
     create_url: String,
     export_url: String,
+    options: Object,
 });
 const page = usePage();
 const { search, filtering, apply, schedule, reset, sort } = useListFilters(
     props,
     () => page.props.routes.itemsIndex,
-    { sort: "item_code", ownership: "all" },
+    {
+        sort: "item_code",
+        ownership: "all",
+        category: "all",
+        vendor: "",
+        location: "",
+    },
 );
 const hasFilters = computed(
     () =>
         Boolean(search.q.trim()) ||
         search.status !== "all" ||
-        search.ownership !== "all",
+        search.ownership !== "all" ||
+        search.category !== "all" ||
+        Boolean(search.vendor) ||
+        Boolean(search.location),
 );
 const target = ref(null);
 const statusForm = useForm({ is_active: false });
@@ -95,8 +105,8 @@ function saveStatus() {
                             <span class="count-badge">{{ items.total }}</span>
                         </h2>
                         <p>
-                            Cari berdasarkan kode internal, part number, atau
-                            deskripsi.
+                            Telusuri barang, kategori, Vendor, dan lokasi
+                            aktifnya.
                         </p>
                     </div>
                 </div>
@@ -114,7 +124,7 @@ function saveStatus() {
                         id="item-search"
                         v-model="search.q"
                         type="search"
-                        placeholder="Cari kode, part number, atau nama barang…"
+                        placeholder="Cari kode, PN, nama, kategori, Vendor, atau lokasi…"
                         maxlength="100"
                         @input="schedule"
                         @keydown.enter.prevent="apply"
@@ -125,8 +135,77 @@ function saveStatus() {
                     />
                 </div>
                 <div class="toolbar-actions item-toolbar-actions">
-                    <label class="sr-only" for="ownership-filter"
-                        >Filter kepemilikan</label
+                    <Link
+                        v-if="can.create"
+                        :href="create_url"
+                        class="button button--primary"
+                        ><AppIcon name="plus" /> Tambah Barang</Link
+                    >
+                </div>
+            </div>
+            <div class="item-filters">
+                <div class="filter-control">
+                    <label for="category-filter">Filter kategori</label
+                    ><select
+                        id="category-filter"
+                        v-model="search.category"
+                        class="form-select"
+                        @change="apply"
+                    >
+                        <option value="all">Semua kategori</option>
+                        <option value="uncategorized">
+                            Belum dikategorikan
+                        </option>
+                        <option
+                            v-for="category in options.categories"
+                            :key="category.id"
+                            :value="category.id"
+                        >
+                            {{ category.code }} — {{ category.name
+                            }}{{ !category.is_active ? " (nonaktif)" : "" }}
+                        </option>
+                    </select>
+                </div>
+                <div class="filter-control">
+                    <label for="vendor-filter">Filter Vendor aktif</label
+                    ><select
+                        id="vendor-filter"
+                        v-model="search.vendor"
+                        class="form-select"
+                        @change="apply"
+                    >
+                        <option value="">Semua Vendor</option>
+                        <option
+                            v-for="vendor in options.vendors"
+                            :key="vendor.id"
+                            :value="vendor.id"
+                        >
+                            {{ vendor.vendor_code }} — {{ vendor.vendor_name
+                            }}{{ !vendor.is_active ? " (nonaktif)" : "" }}
+                        </option>
+                    </select>
+                </div>
+                <div class="filter-control">
+                    <label for="location-filter">Filter lokasi aktif</label
+                    ><select
+                        id="location-filter"
+                        v-model="search.location"
+                        class="form-select"
+                        @change="apply"
+                    >
+                        <option value="">Semua lokasi</option>
+                        <option
+                            v-for="location in options.locations"
+                            :key="location.id"
+                            :value="location.id"
+                        >
+                            {{ location.location_code
+                            }}{{ !location.is_active ? " (nonaktif)" : "" }}
+                        </option>
+                    </select>
+                </div>
+                <div class="filter-control">
+                    <label for="ownership-filter">Filter kepemilikan</label
                     ><select
                         id="ownership-filter"
                         v-model="search.ownership"
@@ -135,9 +214,11 @@ function saveStatus() {
                     >
                         <option value="all">Semua jenis</option>
                         <option value="STOCK">Stock internal</option>
-                        <option value="CONSIGNMENT">Consignment</option></select
-                    ><label class="sr-only" for="item-status"
-                        >Filter status barang</label
+                        <option value="CONSIGNMENT">Consignment</option>
+                    </select>
+                </div>
+                <div class="filter-control">
+                    <label for="item-status">Filter status barang</label
                     ><select
                         id="item-status"
                         v-model="search.status"
@@ -146,13 +227,8 @@ function saveStatus() {
                     >
                         <option value="all">Semua status</option>
                         <option value="active">Aktif</option>
-                        <option value="inactive">Nonaktif</option></select
-                    ><Link
-                        v-if="can.create"
-                        :href="create_url"
-                        class="button button--primary"
-                        ><AppIcon name="plus" /> Tambah Barang</Link
-                    >
+                        <option value="inactive">Nonaktif</option>
+                    </select>
                 </div>
             </div>
             <div class="table-meta">
@@ -226,6 +302,7 @@ function saveStatus() {
                                 </button>
                             </th>
                             <th scope="col">Jenis</th>
+                            <th scope="col">Kategori</th>
                             <th scope="col">Satuan</th>
                             <th scope="col" class="numeric-cell">
                                 <button
@@ -236,9 +313,7 @@ function saveStatus() {
                                     Target refill
                                 </button>
                             </th>
-                            <th scope="col" class="numeric-cell">
-                                Vendor aktif
-                            </th>
+                            <th scope="col">Vendor / lokasi aktif</th>
                             <th scope="col">Status</th>
                             <th scope="col" class="actions-column">Aksi</th>
                         </tr>
@@ -260,6 +335,15 @@ function saveStatus() {
                                 <OwnershipBadge :type="item.ownership_type" />
                             </td>
                             <td>
+                                <span
+                                    v-if="item.category"
+                                    class="category-label"
+                                    >{{ item.category.name }}</span
+                                ><span v-else class="muted-text"
+                                    >Belum dikategorikan</span
+                                >
+                            </td>
+                            <td>
                                 <span class="unit-code">{{
                                     item.unit_code
                                 }}</span>
@@ -267,8 +351,36 @@ function saveStatus() {
                             <td class="numeric-cell">
                                 {{ formatQuantity(item.minimum_stock) }}
                             </td>
-                            <td class="numeric-cell">
-                                {{ item.vendor_count }}
+                            <td class="placement-cell">
+                                <strong>{{
+                                    item.ownership_type === "CONSIGNMENT"
+                                        ? `${item.vendor_count} Vendor`
+                                        : "Internal"
+                                }}</strong>
+                                <small
+                                    v-for="(
+                                        placement, index
+                                    ) in item.placements.slice(0, 2)"
+                                    :key="index"
+                                    class="usage-note"
+                                    >{{
+                                        placement.vendor_code
+                                            ? `${placement.vendor_code} · `
+                                            : ""
+                                    }}{{ placement.location_code }}</small
+                                >
+                                <Link
+                                    v-if="item.placements.length > 2"
+                                    :href="item.show_url"
+                                    class="text-button placement-more"
+                                    >+{{ item.placements.length - 2 }} relasi
+                                    lainnya</Link
+                                >
+                                <small
+                                    v-if="!item.placements.length"
+                                    class="usage-note"
+                                    >Belum ada penempatan</small
+                                >
                             </td>
                             <td><StatusBadge :active="item.is_active" /></td>
                             <td>

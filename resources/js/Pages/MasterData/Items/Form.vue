@@ -18,6 +18,7 @@ const form = useForm(`ItemForm:${props.item?.id ?? "new"}`, {
     item_name: props.item?.item_name ?? "",
     ownership_type: props.item?.ownership_type ?? "STOCK",
     unit_id: props.item?.unit_id ?? "",
+    category_id: props.item?.category_id ?? "",
     minimum_stock: props.item?.minimum_stock ?? "0",
     tracking_type: "QUANTITY",
     is_active: props.item?.is_active ?? true,
@@ -190,6 +191,43 @@ function save() {
                                     "
                                 />
                             </FormField>
+                            <FormField
+                                id="item-category"
+                                label="Kategori barang"
+                                :error="form.errors.category_id"
+                                hint="Opsional. Kelompok produk terpisah dari kepemilikan STOCK atau CONSIGNMENT."
+                            >
+                                <select
+                                    id="item-category"
+                                    v-model="form.category_id"
+                                    class="form-input"
+                                    :aria-invalid="
+                                        Boolean(form.errors.category_id)
+                                    "
+                                    :aria-describedby="
+                                        form.errors.category_id
+                                            ? 'item-category-error'
+                                            : 'item-category-hint'
+                                    "
+                                >
+                                    <option value="">
+                                        Belum dikategorikan
+                                    </option>
+                                    <option
+                                        v-for="category in options.categories"
+                                        :key="category.id"
+                                        :value="category.id"
+                                        :disabled="!category.is_active"
+                                    >
+                                        {{ category.code }} — {{ category.name
+                                        }}{{
+                                            !category.is_active
+                                                ? " (nonaktif)"
+                                                : ""
+                                        }}
+                                    </option>
+                                </select>
+                            </FormField>
                             <div class="form-grid">
                                 <FormField
                                     id="item-unit"
@@ -317,6 +355,12 @@ function save() {
                                 target="_blank"
                                 rel="noopener"
                                 >Master Satuan
+                                <AppIcon name="arrowRight" /></Link
+                            ><Link
+                                :href="page.props.routes.categoriesIndex"
+                                target="_blank"
+                                rel="noopener"
+                                >Master Kategori
                                 <AppIcon name="arrowRight" /></Link
                             ><Link
                                 :href="page.props.routes.vendorsIndex"

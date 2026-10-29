@@ -26,6 +26,7 @@ const props = defineProps({
     options: Object,
     source_units: Array,
     units: Array,
+    categories: Array,
     options_url: String,
     confirm_url: String,
 });
@@ -65,8 +66,12 @@ const rowForm = useForm({
     IS_ACTIVE: "",
     TRACKING_TYPE: "",
     RELATION_ACTIVE: "",
+    CATEGORY_CODE: "",
 });
-const confirmForm = useForm({ acknowledge_skipped: false });
+const confirmForm = useForm({
+    acknowledge_skipped: false,
+    acknowledge_ignored_columns: false,
+});
 const canConfirm = computed(
     () => props.summary.blocking_groups === 0 && props.summary.ready_groups > 0,
 );
@@ -143,6 +148,21 @@ function expiry() {
                 sumber</span
             >
         </div>
+        <section
+            v-if="batch.ignored_columns.length"
+            class="import-warning"
+            role="status"
+        >
+            <AppIcon name="info" />
+            <div>
+                <strong>Ada kolom yang tidak diimport</strong>
+                <p>
+                    {{ batch.ignored_columns.join(", ") }}. Nilai pada kolom ini
+                    tidak akan disimpan. Gunakan template untuk memastikan data
+                    yang didukung.
+                </p>
+            </div>
+        </section>
         <section class="summary-grid" aria-label="Ringkasan preview import">
             <SummaryCard
                 label="Kelompok Siap"
@@ -238,6 +258,12 @@ function expiry() {
                         rel="noopener"
                         class="text-button"
                         >Kelola Master Satuan</Link
+                    ><Link
+                        :href="page.props.routes.categoriesIndex"
+                        target="_blank"
+                        rel="noopener"
+                        class="text-button"
+                        >Kelola Master Kategori</Link
                     ><button
                         type="submit"
                         class="button button--secondary"
@@ -352,6 +378,12 @@ function expiry() {
                                     {{
                                         formatQuantity(group.data.minimum_stock)
                                     }}</small
+                                ><small class="usage-note"
+                                    >Kategori:
+                                    {{
+                                        group.data.category_code ||
+                                        "Belum dikategorikan"
+                                    }}</small
                                 >
                             </td>
                             <td>
@@ -424,6 +456,7 @@ function expiry() {
                 class="button button--primary"
                 :disabled="!canConfirm"
                 @click="
+                    confirmForm.reset();
                     confirmForm.clearErrors();
                     confirmOpen = true;
                 "
@@ -657,6 +690,10 @@ function expiry() {
                             { key: 'LOCATION', label: 'Kode lokasi' },
                             { key: 'UOM', label: 'Kode satuan' },
                             {
+                                key: 'CATEGORY_CODE',
+                                label: 'Kode kategori (opsional)',
+                            },
+                            {
                                 key: 'TRACKING_TYPE',
                                 label: 'Cara pelacakan (QUANTITY)',
                             },
@@ -673,6 +710,11 @@ function expiry() {
                             :id="`row-${field.key}`"
                             v-model="rowForm[field.key]"
                             type="text"
+                            :list="
+                                field.key === 'CATEGORY_CODE'
+                                    ? 'import-category-codes'
+                                    : undefined
+                            "
                             class="form-input"
                             :disabled="rowForm.skip"
                             maxlength="200"
@@ -721,6 +763,19 @@ function expiry() {
                         </select></FormField
                     >
                 </div>
+                <datalist id="import-category-codes">
+                    <option
+                        v-for="category in categories"
+                        :key="category.code"
+                        :value="category.code"
+                    >
+                        {{ category.name }}
+                    </option>
+                </datalist>
+                <p class="field-hint">
+                    Gunakan kode dari Master Kategori. Kosong mempertahankan
+                    kategori barang lama; barang baru tetap belum dikategorikan.
+                </p>
             </div>
             <footer class="dialog__footer">
                 <button
@@ -769,6 +824,18 @@ function expiry() {
                         >, termasuk duplikat persis, akan dilewati.</span
                     ></label
                 >
+                <label
+                    v-if="batch.ignored_columns.length"
+                    class="checkbox-setting"
+                    ><input
+                        v-model="confirmForm.acknowledge_ignored_columns"
+                        type="checkbox"
+                    /><span
+                        >Saya memahami bahwa kolom
+                        <strong>{{ batch.ignored_columns.join(", ") }}</strong>
+                        tidak akan diimport.</span
+                    ></label
+                >
                 <p
                     v-if="confirmForm.errors.confirmation"
                     class="field-error"
@@ -792,7 +859,9 @@ function expiry() {
                     :disabled="
                         confirmForm.processing ||
                         (summary.skipped_rows > 0 &&
-                            !confirmForm.acknowledge_skipped)
+                            !confirmForm.acknowledge_skipped) ||
+                        (batch.ignored_columns.length > 0 &&
+                            !confirmForm.acknowledge_ignored_columns)
                     "
                 >
                     <span

@@ -51,7 +51,7 @@ class ReferenceRequest extends FormRequest
 
         return [
             'code' => ['required', 'string', 'max:50', Rule::unique($definition['table'], $definition['code'])->ignore($this->route('record'))],
-            'name' => [$this->route('resource') === 'vendors' ? 'required' : 'nullable', 'string', 'max:150'],
+            'name' => [$this->route('resource') === 'locations' ? 'nullable' : 'required', 'string', 'max:150'],
             'pic_name' => ['nullable', 'string', 'max:150'], 'is_active' => ['required', 'boolean'],
         ];
     }
@@ -59,7 +59,7 @@ class ReferenceRequest extends FormRequest
     public function messages(): array
     {
         return ['code.required' => 'Kode wajib diisi.', 'code.unique' => 'Kode sudah digunakan, termasuk pada data nonaktif.',
-            'code.max' => 'Kode maksimal 50 karakter.', 'name.required' => 'Nama Vendor wajib diisi.', 'name.max' => 'Nama atau keterangan maksimal 150 karakter.',
+            'code.max' => 'Kode maksimal 50 karakter.', 'name.required' => 'Nama '.$this->definition()['label'].' wajib diisi.', 'name.max' => 'Nama atau keterangan maksimal 150 karakter.',
             'pic_name.max' => 'Nama PIC maksimal 150 karakter.', 'is_active.required' => 'Tentukan status data.', 'is_active.boolean' => 'Status tidak valid.'];
     }
 }

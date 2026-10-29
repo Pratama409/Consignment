@@ -12,7 +12,7 @@ use ZipArchive;
 
 class WorkbookReader
 {
-    public const COLUMNS = ['ITEM_CODE', 'VENDOR', 'PART_NUMBER', 'DESCRIPTION', 'LOCATION', 'UOM', 'MATERIAL_TYPE', 'MINIMUM_STOCK', 'IS_ACTIVE', 'TRACKING_TYPE', 'RELATION_ACTIVE'];
+    public const COLUMNS = ['ITEM_CODE', 'VENDOR', 'PART_NUMBER', 'DESCRIPTION', 'LOCATION', 'UOM', 'MATERIAL_TYPE', 'MINIMUM_STOCK', 'IS_ACTIVE', 'TRACKING_TYPE', 'RELATION_ACTIVE', 'CATEGORY_CODE'];
 
     public function read(UploadedFile $file): array
     {
@@ -47,14 +47,18 @@ class WorkbookReader
             $workbook = $reader->load($file->getRealPath());
             $sheet = $workbook->getSheet(0);
             $headers = [];
+            $ignoredColumns = [];
             for ($column = 1; $column <= min(30, $info[0]['totalColumns']); $column++) {
                 $value = $sheet->getCell([$column, 1])->getValue();
                 $header = mb_strtoupper(str_replace(' ', '_', trim((string) $value, " \t\n\r\0\x0B\xEF\xBB\xBF")));
+                $header = $header === 'CATEGORY' ? 'CATEGORY_CODE' : $header;
                 if (in_array($header, self::COLUMNS, true)) {
                     if (in_array($header, $headers, true)) {
                         $this->fail('Header '.$header.' muncul lebih dari sekali.');
                     }
                     $headers[$column] = $header;
+                } elseif ($header !== '') {
+                    $ignoredColumns[] = mb_substr($header, 0, 100);
                 }
             }
             $missing = array_diff(['VENDOR', 'PART_NUMBER', 'DESCRIPTION', 'LOCATION', 'UOM', 'MATERIAL_TYPE'], $headers);
@@ -94,7 +98,7 @@ class WorkbookReader
             $this->fail('File tidak memiliki baris data.');
         }
 
-        return ['headers' => array_values($headers), 'rows' => $rows];
+        return ['headers' => array_values($headers), 'rows' => $rows, 'ignored_columns' => array_values(array_unique($ignoredColumns))];
     }
 
     private function fail(string $message): never

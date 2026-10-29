@@ -15,6 +15,13 @@ $rows = [
     ['WAREHOUSE', '000BROWSER.', 'Bearing import browser', 'IMP-A', 'PC', 'STOCK'],
     ['WAREHOUSE', 'CORRECT-BROWSER', 'Perbaikan lokasi browser', 'A & B', 'PC', 'STOCK'],
 ];
+if (($argv[1] ?? '') === 'category') {
+    $headers = [...$headers, 'CATEGORY_CODE', 'LEGACY_PRICE'];
+    $rows = [
+        ['WAREHOUSE', 'CAT-BROWSER', 'Kategori dari import', 'UNASSIGNED', 'PC', 'STOCK', 'Kategori belum dikenali', '15000'],
+        ['WAREHOUSE', 'UNCAT-BROWSER', 'Barang tanpa kategori import', 'UNASSIGNED', 'PC', 'STOCK', '', '25000'],
+    ];
+}
 foreach ([$headers, ...$rows] as $rowIndex => $row) {
     foreach ($row as $column => $value) {
         $book->getActiveSheet()->setCellValueExplicit([$column + 1, $rowIndex + 1], $value, DataType::TYPE_STRING);

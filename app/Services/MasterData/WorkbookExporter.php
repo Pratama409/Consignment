@@ -3,6 +3,7 @@
 namespace App\Services\MasterData;
 
 use Illuminate\Database\Eloquent\Builder;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -19,12 +20,12 @@ class WorkbookExporter
         }
         $number = 2;
         if ($query) {
-            foreach ($query->with(['unit', 'vendorItems.vendor', 'vendorItems.location', 'stockItemLocations.location'])->lazy(200) as $item) {
+            foreach ($query->with(['category', 'unit', 'vendorItems.vendor', 'vendorItems.location', 'stockItemLocations.location'])->lazy(200) as $item) {
                 $relations = $item->ownership_type->value === 'CONSIGNMENT' ? $item->vendorItems : $item->stockItemLocations;
                 foreach ($relations->isEmpty() ? [null] : $relations as $relation) {
                     $values = [$item->item_code, $item->ownership_type->value === 'STOCK' ? 'WAREHOUSE' : $relation?->vendor?->vendor_code,
                         $item->part_number, $item->item_name, $relation?->location?->location_code, $item->unit->code, $item->ownership_type->value,
-                        $item->minimum_stock, $item->is_active ? '1' : '0', $item->tracking_type->value, $relation ? ($relation->is_active ? '1' : '0') : ''];
+                        $item->minimum_stock, $item->is_active ? '1' : '0', $item->tracking_type->value, $relation ? ($relation->is_active ? '1' : '0') : '', $item->category?->code];
                     foreach ($values as $index => $value) {
                         $sheet->setCellValueExplicit([$index + 1, $number], (string) ($value ?? ''), DataType::TYPE_STRING);
                     }
@@ -32,10 +33,11 @@ class WorkbookExporter
                 }
             }
         }
-        $sheet->getStyle('A1:K1')->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
-        $sheet->getStyle('A1:K1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF111827');
-        $sheet->freezePane('A2')->setAutoFilter('A1:K'.max(1, $number - 1));
-        foreach (range('A', 'K') as $column) {
+        $lastColumn = Coordinate::stringFromColumnIndex(count(WorkbookReader::COLUMNS));
+        $sheet->getStyle('A1:'.$lastColumn.'1')->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+        $sheet->getStyle('A1:'.$lastColumn.'1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF111827');
+        $sheet->freezePane('A2')->setAutoFilter('A1:'.$lastColumn.max(1, $number - 1));
+        foreach (range('A', $lastColumn) as $column) {
             $sheet->getColumnDimension($column)->setWidth($column === 'D' ? 45 : 22);
         }
         if ($template) {
@@ -44,6 +46,7 @@ class WorkbookExporter
                 $guide->setCellValueExplicit([1, $index + 1], $message, DataType::TYPE_STRING);
             }
             $guide->getColumnDimension('A')->setWidth(110);
+            $guide->setCellValueExplicit('A8', 'CATEGORY_CODE opsional: gunakan kode Master Kategori. Kosong mempertahankan kategori barang lama; barang baru tetap belum dikategorikan. Perubahan ke tanpa kategori dilakukan melalui form Barang.', DataType::TYPE_STRING);
         }
         $book->setActiveSheetIndex(0);
 

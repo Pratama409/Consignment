@@ -72,6 +72,22 @@ test("admin completes Vendor, Lokasi, Barang create/detail/edit and Excel export
     await expect(dialog).not.toBeVisible();
     await screenshotWidths(page, "master-lokasi");
 
+    await sidebar.getByRole("link", { name: "Kategori", exact: true }).click();
+    await page
+        .getByRole("button", { name: "Tambah Kategori", exact: true })
+        .first()
+        .click();
+    dialog = page.getByRole("dialog", { name: "Tambah Kategori", exact: true });
+    await dialog.getByLabel("Kode kategori", { exact: false }).fill("UI-CAT");
+    await dialog
+        .getByLabel("Nama kategori", { exact: false })
+        .fill("Komponen pengujian");
+    await dialog
+        .getByRole("button", { name: "Simpan Kategori", exact: true })
+        .click();
+    await expect(dialog).not.toBeVisible();
+    await screenshotWidths(page, "master-kategori");
+
     await sidebar.getByRole("link", { name: "Barang", exact: true }).click();
     await page
         .getByRole("link", { name: "Tambah Barang", exact: true })
@@ -94,6 +110,9 @@ test("admin completes Vendor, Lokasi, Barang create/detail/edit and Excel export
         .getByLabel("Jenis kepemilikan", { exact: false })
         .selectOption("CONSIGNMENT");
     await page.getByLabel(/^Satuan/).selectOption({ label: "PC — Piece" });
+    await page
+        .getByLabel("Kategori barang", { exact: true })
+        .selectOption({ label: "UI-CAT — Komponen pengujian" });
     await page.getByLabel("Target refill", { exact: false }).fill("15.125");
     await page
         .locator("#vendor-0")
@@ -109,6 +128,9 @@ test("admin completes Vendor, Lokasi, Barang create/detail/edit and Excel export
         page.getByRole("heading", { name: "Detail Barang", exact: true }),
     ).toBeVisible();
     await expect(page.getByText("15,125 PC", { exact: true })).toBeVisible();
+    await expect(
+        page.getByText("UI-CAT — Komponen pengujian", { exact: true }),
+    ).toBeVisible();
     await screenshotWidths(page, "barang-detail");
     await page.getByRole("link", { name: "Edit Barang", exact: true }).click();
     await expect(
@@ -122,6 +144,18 @@ test("admin completes Vendor, Lokasi, Barang create/detail/edit and Excel export
     await page.getByRole("link", { name: "Kembali ke daftar barang" }).click();
     await page.getByLabel("Cari barang", { exact: true }).fill("000UI.");
     await expect(page.locator("tbody tr")).toHaveCount(1);
+    await page
+        .getByLabel("Filter kategori", { exact: true })
+        .selectOption({ label: "UI-CAT — Komponen pengujian" });
+    await page
+        .getByLabel("Filter Vendor aktif", { exact: true })
+        .selectOption({ label: "UI-VENDOR — Vendor Pengujian" });
+    await page
+        .getByLabel("Filter lokasi aktif", { exact: true })
+        .selectOption({ label: "UI-RACK" });
+    await page.getByLabel("Cari barang", { exact: true }).fill("Rak pengujian");
+    await expect(page.locator("tbody tr")).toHaveCount(1);
+    await expect(page.locator("tbody tr")).toContainText("UI-VENDOR");
     await screenshotWidths(page, "master-barang");
     const download = page.waitForEvent("download");
     await page.getByRole("link", { name: "Export Excel", exact: true }).click();
@@ -221,6 +255,80 @@ test("Excel upload requires review, allows correction, then confirms skipped dup
     expect((await download).suggestedFilename()).toMatch(/\.xlsx$/);
 });
 
+test("import corrects category and requires acknowledgement of ignored columns", async ({
+    page,
+}) => {
+    const cookie = (await page.context().cookies()).find(
+        (item) => item.name === "XSRF-TOKEN",
+    );
+    const created = await page.request.post("/master-data/kategori", {
+        headers: { "X-XSRF-TOKEN": decodeURIComponent(cookie.value) },
+        form: { code: "IMPORT-CAT", name: "Kategori import", is_active: "1" },
+    });
+    expect(created.ok()).toBe(true);
+    await page.goto("/master-data/import");
+    await page
+        .locator("#import-file")
+        .setInputFiles({
+            name: "category-browser.xlsx",
+            mimeType:
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            buffer: execFileSync(
+                "php",
+                ["tests/Browser/workbook.php", "category"],
+                { windowsHide: true },
+            ),
+        });
+    await page.getByRole("button", { name: "Validasi & Preview" }).click();
+    await expect(page.locator(".import-warning")).toContainText("LEGACY_PRICE");
+    await expect(
+        page.getByRole("button", { name: "Lanjut Konfirmasi" }),
+    ).toBeDisabled();
+    await screenshotWidths(page, "import-kategori-preview");
+    await page
+        .getByRole("button", {
+            name: "Tinjau kelompok CAT-BROWSER",
+            exact: true,
+        })
+        .click();
+    await page
+        .getByRole("button", { name: "Perbaiki baris 2", exact: true })
+        .click();
+    let dialog = page.getByRole("dialog", {
+        name: "Perbaiki Baris 2",
+        exact: true,
+    });
+    await dialog
+        .getByLabel("Kode kategori (opsional)", { exact: true })
+        .fill("IMPORT-CAT");
+    await dialog
+        .getByRole("button", { name: "Simpan Perbaikan", exact: true })
+        .click();
+    await expect(dialog).not.toBeVisible();
+    await page.getByRole("button", { name: "Lanjut Konfirmasi" }).click();
+    dialog = page.getByRole("dialog", {
+        name: "Konfirmasi Import",
+        exact: true,
+    });
+    await expect(
+        dialog.getByRole("button", { name: "Import Sekarang" }),
+    ).toBeDisabled();
+    await dialog.getByRole("checkbox").check();
+    await dialog.getByRole("button", { name: "Import Sekarang" }).click();
+    await expect(
+        page.getByRole("heading", { name: "Import Selesai", exact: true }),
+    ).toBeVisible();
+    await expect(page.locator(".import-warning")).toContainText("LEGACY_PRICE");
+    await page
+        .getByRole("row")
+        .filter({ hasText: "Kategori dari import" })
+        .getByRole("link")
+        .click();
+    await expect(
+        page.getByText("IMPORT-CAT — Kategori import", { exact: true }),
+    ).toBeVisible();
+});
+
 test("normal user navigates all readable masters and cannot open admin flows", async ({
     page,
 }) => {
@@ -241,6 +349,7 @@ test("normal user navigates all readable masters and cannot open admin flows", a
         ["vendor", "Master Vendor"],
         ["lokasi", "Master Lokasi"],
         ["satuan", "Master Satuan"],
+        ["kategori", "Master Kategori"],
     ]) {
         await page.goto(`/master-data/${path}`);
         await expect(

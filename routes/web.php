@@ -20,7 +20,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/master-data/satuan', [UnitController::class, 'store'])->name('units.store');
     Route::put('/master-data/satuan/{unit}', [UnitController::class, 'update'])->name('units.update');
     Route::patch('/master-data/satuan/{unit}/status', [UnitController::class, 'status'])->name('units.status');
-    foreach (['vendors' => 'vendor', 'locations' => 'lokasi'] as $resource => $path) {
+    foreach (['vendors' => 'vendor', 'locations' => 'lokasi', 'categories' => 'kategori'] as $resource => $path) {
         Route::get('/master-data/'.$path, [ReferenceController::class, 'index'])->defaults('resource', $resource)->name($resource.'.index');
         Route::post('/master-data/'.$path, [ReferenceController::class, 'store'])->defaults('resource', $resource)->name($resource.'.store');
         Route::put('/master-data/'.$path.'/{record}', [ReferenceController::class, 'update'])->defaults('resource', $resource)->whereUuid('record')->name($resource.'.update');

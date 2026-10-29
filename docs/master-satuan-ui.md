@@ -42,7 +42,7 @@ bersama server Laravel; hasil build dapat berjalan tanpa Vite dev server.
   Escape ketika tidak memproses, dan pengembalian fokus ke pemicu.
 - Desktop menampilkan sidebar tetap. Di bawah 1280 px sidebar menjadi drawer.
   Pada mobile, tabel dapat digeser horizontal dalam container-nya.
-- Navigasi terhubung ke Barang, Vendor, Satuan, Lokasi, dan Import Master PN
+- Navigasi terhubung ke Barang, Kategori, Vendor, Satuan, Lokasi, dan Import Master PN
   (khusus admin). Setelah login, halaman awal adalah Master Barang.
 - Login menampilkan identitas/role asli setelah autentikasi. Dashboard,
   notifikasi, dark mode, dan transaksi tidak masuk tahap Master Data.

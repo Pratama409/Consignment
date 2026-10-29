@@ -48,6 +48,10 @@ const page = usePage();
                 </div>
             </header>
             <div class="form-card__body form-stack">
+                <p v-if="result.ignored_columns?.length" class="import-warning">
+                    Kolom yang tidak diimport sesuai konfirmasi:
+                    {{ result.ignored_columns.join(", ") }}.
+                </p>
                 <p class="confirmation-description">
                     Gunakan hasil export yang menyertakan ITEM_CODE untuk
                     mencocokkan barang saat import berikutnya.

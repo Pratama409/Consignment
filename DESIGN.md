@@ -5,7 +5,7 @@ Gunakan dokumen ini bersama skill frontend-design sebagai acuan UI proyek Larave
 Nilai warna dan ukuran berikut adalah pendekatan desain dari screenshot, bukan hasil pengukuran piksel. Jangan menyalin tab browser, address bar, atau banner Google Apps Script.
 
 ## 2. Ruang lingkup
-Tahap pertama hanya Master Data: Barang, Vendor, Satuan, Lokasi, dan Import Master PN. Screenshot menjadi referensi visual, bukan persetujuan menambah PR, PO, nilai stok, ITO, notifikasi, dark mode, atau auto-update. Tampilkan fitur tersebut hanya setelah dirancang dan diimplementasikan. Jangan menampilkan angka contoh sebagai data produksi.
+Tahap pertama hanya Master Data: Barang, Kategori, Vendor, Satuan, Lokasi, dan Import Master PN. Kategori produk terpisah dari kepemilikan STOCK/CONSIGNMENT serta cara pelacakan. Screenshot menjadi referensi visual, bukan persetujuan menambah PR, PO, nilai stok, ITO, notifikasi, dark mode, atau auto-update. Tampilkan fitur tersebut hanya setelah dirancang dan diimplementasikan. Jangan menampilkan angka contoh sebagai data produksi.
 
 ## 3. Token visual
 | Token | Nilai | Pemakaian |
@@ -47,7 +47,7 @@ Gradient digunakan pada header, menu aktif, dan garis aksen; isi tabel dan form 
 ### Sidebar
 - Lebar desktop 260–280px, tinggi viewport, posisi tetap.
 - Bagian atas: WAREHOUSE SYSTEM dalam cyan lembut, dengan pemisah tipis.
-- Navigasi: Dashboard; Master Data dengan anak Barang, Vendor, Satuan, Lokasi, Import Master PN.
+- Navigasi tahap Master Data: Barang, Kategori, Vendor, Satuan, Lokasi, Import Master PN. Dashboard ditambahkan setelah modul dan sumber datanya tersedia.
 - Jangan membuat route mati untuk modul masa depan; cukup dokumentasikan rencananya.
 - Menu aktif berbentuk kapsul membulat, teks putih, ikon dengan latar putih transparan.
 - Menu lain memakai teks muted; hover memperjelas latar tanpa gerakan besar.
@@ -71,8 +71,12 @@ Toolbar: pencarian di kiri; filter status dan tombol Tambah di kanan. Mobile dit
 Kolom: Kode, Part Number, Nama/Deskripsi, Jenis, Satuan, Minimum, Jumlah Vendor, Status, Aksi.
 Pertahankan kode/PN dalam satu baris. Nama barang boleh membungkus; jangan memotong informasi penting tanpa akses detail.
 Form memuat part number, nama, ownership, satuan, tracking, minimum, status. Kode dibuat sistem.
+Kategori produk dipilih dari master secara opsional; data lama ditampilkan sebagai Belum dikategorikan sampai dipilih pengguna. Daftar Barang mendukung pencarian kategori/Vendor/lokasi dan filter relasi aktif. Gabungan Vendor dan lokasi harus cocok pada relasi yang sama. Tampilkan ringkasan Vendor/lokasi dan akses detail untuk seluruh relasi.
 Untuk CONSIGNMENT tampilkan daftar pasangan Vendor–Lokasi dengan tombol Tambah Vendor dan error per baris. Untuk STOCK sembunyikan bagian Vendor. Lokasi STOCK mengikuti keputusan skema final; jangan menetapkan struktur database melalui desain UI.
 Gunakan halaman form terpisah atau panel lebar bila daftar Vendor membuat modal terlalu panjang.
+
+### Master Kategori
+Kolom: kode, nama kategori, status, aksi. Form compact menggunakan komponen referensi bersama. Kode unik dan dinormalisasi; kategori yang dipakai barang aktif tidak dapat dinonaktifkan. Kategori tidak dibuat otomatis dari deskripsi atau contoh video.
 
 ### Master Vendor
 Kolom: Kode Vendor, Nama Vendor, Status, Aksi.

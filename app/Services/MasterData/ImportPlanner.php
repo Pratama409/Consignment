@@ -2,6 +2,7 @@
 
 namespace App\Services\MasterData;
 
+use App\Models\Category;
 use App\Models\Item;
 use App\Models\Location;
 use App\Models\MasterDataImport;
@@ -15,6 +16,8 @@ class ImportPlanner
 {
     private Collection $units;
 
+    private Collection $categories;
+
     private Collection $vendors;
 
     private Collection $locations;
@@ -26,9 +29,10 @@ class ImportPlanner
     public function build(MasterDataImport $import): array
     {
         $this->units = Unit::all()->keyBy(fn ($unit) => mb_strtoupper($unit->code));
+        $this->categories = Category::all()->keyBy(fn ($category) => mb_strtoupper($category->code));
         $this->vendors = Vendor::all()->keyBy(fn ($vendor) => mb_strtoupper($vendor->vendor_code));
         $this->locations = Location::all()->keyBy(fn ($location) => mb_strtoupper($location->location_code));
-        $this->items = Item::with(['vendorItems', 'stockItemLocations'])->get()->keyBy('item_code');
+        $this->items = Item::with(['category', 'vendorItems', 'stockItemLocations'])->get()->keyBy('item_code');
         $this->candidates = $this->items->groupBy(fn ($item) => $item->ownership_type->value.'|'.mb_strtoupper($item->part_number));
         $groups = [];
         $corrections = $import->corrections ?? [];
@@ -69,7 +73,7 @@ class ImportPlanner
                 if ($row['skip']) {
                     continue;
                 }
-                $signature = json_encode(Arr::only($row, ['item_code', 'part_number', 'item_name', 'ownership_type', 'unit_code', 'minimum_stock', 'is_active', 'tracking_type', 'vendor_code', 'location_code', 'relation_active']));
+                $signature = json_encode(Arr::only($row, ['item_code', 'part_number', 'item_name', 'ownership_type', 'unit_code', 'category_code', 'minimum_stock', 'is_active', 'tracking_type', 'vendor_code', 'location_code', 'relation_active']));
                 if (isset($seen[$signature])) {
                     $row['duplicate_of'] = $seen[$signature];
                     $duplicates++;
@@ -85,7 +89,7 @@ class ImportPlanner
             if (! $unique) {
                 $group['action'] = 'skip';
             }
-            $group['data'] = Arr::only($first, ['part_number', 'item_name', 'ownership_type', 'unit_id', 'unit_code', 'minimum_stock', 'is_active', 'tracking_type']);
+            $group['data'] = Arr::only($first, ['part_number', 'item_name', 'ownership_type', 'unit_id', 'unit_code', 'category_id', 'category_code', 'minimum_stock', 'is_active', 'tracking_type']);
             $group['unique_rows'] = $unique;
             $group['duplicate_count'] = $duplicates;
             $group['candidates'] = $candidateItems->take(12)->map(fn ($item) => $item->only('item_code', 'item_name', 'part_number'))->values()->all();
@@ -96,7 +100,7 @@ class ImportPlanner
                 }
             }
             if ($group['action'] !== 'split' && $unique) {
-                foreach (['part_number', 'item_name', 'ownership_type', 'unit_id', 'minimum_stock', 'is_active', 'tracking_type'] as $field) {
+                foreach (['part_number', 'item_name', 'ownership_type', 'unit_id', 'category_id', 'minimum_stock', 'is_active', 'tracking_type'] as $field) {
                     if (count(array_unique(array_map(fn ($row) => (string) $row[$field], $unique))) > 1) {
                         $group['errors'][] = 'Nilai '.$field.' berbeda dalam satu kelompok. Perbaiki baris sebelum digabung.';
                     }
@@ -180,6 +184,8 @@ class ImportPlanner
     {
         $unitCode = mb_strtoupper(trim($values['UOM'] ?? ''));
         $unit = isset($options['unit_map'][$unitCode]) ? $this->units->firstWhere('id', $options['unit_map'][$unitCode]) : $this->units->get($unitCode);
+        $categoryCode = mb_strtoupper(trim($values['CATEGORY_CODE'] ?? ''));
+        $category = $categoryCode === '' ? $target?->category : $this->categories->get($categoryCode);
         $ownership = $this->ownership($values['MATERIAL_TYPE'] ?? '');
         $vendorCode = mb_strtoupper(trim($values['VENDOR'] ?? ''));
         $locationCode = mb_strtoupper(trim($values['LOCATION'] ?? ''));
@@ -195,6 +201,7 @@ class ImportPlanner
         $row = ['number' => $number, 'values' => $values, 'errors' => $issues,
             'item_code' => mb_strtoupper(trim($values['ITEM_CODE'] ?? '')), 'part_number' => trim($values['PART_NUMBER'] ?? ''), 'item_name' => trim($values['DESCRIPTION'] ?? ''),
             'ownership_type' => $ownership, 'unit_code' => $unit?->code ?? $unitCode, 'unit_id' => $unit?->id,
+            'category_code' => $category?->code ?? $categoryCode, 'category_id' => $category?->id,
             'minimum_stock' => $minimum, 'is_active' => $this->boolean($values['IS_ACTIVE'] ?? '', $target?->is_active ?? true),
             'tracking_type' => mb_strtoupper(trim($values['TRACKING_TYPE'] ?? '')) ?: 'QUANTITY',
             'vendor_code' => $ownership === 'STOCK' ? '' : $vendorCode, 'vendor_name' => trim($values['VENDOR'] ?? ''), 'vendor_id' => null,
@@ -218,6 +225,11 @@ class ImportPlanner
             $row['errors']['UOM'] = 'Satuan '.$unitCode.' belum terdaftar. Pilih pemetaan satuan atau tambahkan Master Satuan.';
         } elseif (! $unit->is_active && $target?->unit_id !== $unit->id) {
             $row['errors']['UOM'] = 'Satuan harus aktif untuk pemilihan baru.';
+        }
+        if ($categoryCode !== '' && ! $category) {
+            $row['errors']['CATEGORY_CODE'] = 'Kategori '.$categoryCode.' belum terdaftar. Tambahkan Master Kategori atau pilih kode kategori yang benar.';
+        } elseif ($category && ! $category->is_active && ($target?->category_id !== $category->id || ($target && ! $target->is_active && $row['is_active'] === true))) {
+            $row['errors']['CATEGORY_CODE'] = 'Kategori harus aktif untuk pemilihan baru.';
         }
         if ($row['item_code'] !== '' && ! $this->items->has($row['item_code'])) {
             $row['errors']['ITEM_CODE'] = 'ITEM_CODE tidak ditemukan. Gunakan kode dari export, atau kosongkan untuk barang baru.';
