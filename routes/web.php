@@ -6,6 +6,7 @@ use App\Http\Controllers\MasterData\ItemController;
 use App\Http\Controllers\MasterData\ItemExportController;
 use App\Http\Controllers\MasterData\ReferenceController;
 use App\Http\Controllers\MasterData\UnitController;
+use App\Http\Controllers\Settings\ShiftDefinitionController;
 use App\Http\Controllers\UserManagement\UserController;
 use App\Http\Middleware\EnsureActiveUser;
 use Illuminate\Support\Facades\Route;
@@ -16,6 +17,8 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware(['auth', EnsureActiveUser::class])->group(function () {
+    Route::get('/settings/shifts', [ShiftDefinitionController::class, 'index'])->name('shifts.index');
+    Route::post('/settings/shifts', [ShiftDefinitionController::class, 'store'])->name('shifts.store');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
