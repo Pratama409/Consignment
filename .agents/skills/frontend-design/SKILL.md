@@ -21,6 +21,7 @@ description: Rancang dan implementasikan antarmuka Consignment Inventory menggun
 ## Halaman Master Data
 Rancang halaman:
 - Barang.
+- Kategori produk; terpisah dari jenis kepemilikan STOCK/CONSIGNMENT.
 - Vendor.
 - Satuan.
 - Lokasi.

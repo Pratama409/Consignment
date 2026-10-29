@@ -12,11 +12,12 @@ Konfigurasi tes memakai APP_KEY khusus pengujian yang tidak dipakai aplikasi.
 ## Tabel dan aturan
 
 - `units`: kode unik, nama, status.
+- `categories`: UUID, kode unik, nama, status. Kategori produk berbeda dari kepemilikan dan tracking; tidak diisi otomatis dari video atau nama barang.
 - `vendors`: kode unik, nama, `pic_name` opsional, status. WAREHOUSE bukan Vendor.
 - `locations`: kode unik, keterangan opsional, status. UNASSIGNED adalah lokasi
   sistem untuk penempatan yang belum diketahui.
 - `items`: kode unik buatan sistem, PN berindeks nonunik, nama, ownership,
-  tracking, satuan, target refill `minimum_stock DECIMAL(18,4)`, status.
+  tracking, satuan, category_id UUID nullable, target refill `minimum_stock DECIMAL(18,4)`, status.
 - `vendor_items`: pasangan barang–Vendor unik, satu lokasi utama, status.
 - `stock_item_locations`: pasangan barang STOCK–lokasi unik, status. Mendukung
   penyimpanan lokasi internal yang berulang dalam Excel tanpa saldo stok.
@@ -24,8 +25,10 @@ Konfigurasi tes memakai APP_KEY khusus pengujian yang tidak dipakai aplikasi.
 Semua tabel menggunakan primary key UUID, termasuk tabel bawaan Laravel dan
 `migrations`. Kolom FK memakai UUID dengan ON DELETE RESTRICT. Pada MySQL,
 UUID disimpan sebagai CHAR(36). Model aplikasi menggunakan HasUuids Laravel
-(UUID v7); insert Query Builder yang tidak mengisi ID memakai default UUID
-database. Angka jumlah, nomor urut, dan timestamp tetap bertipe numerik.
+(UUID v7). Tabel hasil konversi UUID juga memiliki default UUID database untuk
+kompatibilitas insert Query Builder bawaan Laravel. Insert langsung ke tabel
+kategori harus menyertakan UUID; gunakan model Category dalam aplikasi.
+Angka jumlah, nomor urut, dan timestamp tetap bertipe numerik.
 Ownership dikunci setelah dibuat. Minimum tidak negatif dan dapat diedit;
 nilainya berlaku sama untuk setiap Vendor dari barang tersebut. SERIALIZED
 dicadangkan di skema; alur penyimpanan v1 hanya menerima QUANTITY. QR dan
@@ -46,7 +49,11 @@ aplikasi, bukan lewat insert/query builder langsung. SQL langsung dapat
 melewati event model dan pemeriksaan agregat aplikasi.
 
 `SaveItem` menerima form lengkap: part_number, item_name, ownership_type,
-unit_id, minimum_stock; tracking_type/is_active opsional. Relasi consignment
+unit_id, minimum_stock; tracking_type/is_active/category_id opsional.
+category_id yang tidak dikirim mempertahankan kategori lama; NULL mengosongkannya.
+Kategori nonaktif tidak boleh dipilih baru atau digunakan untuk mengaktifkan
+barang. Penonaktifan kategori ditolak selama digunakan barang aktif.
+Relasi consignment
 diisi melalui vendor_items berisi vendor_id, location_id, is_active opsional.
 Penempatan STOCK menggunakan stock_locations berisi location_id dan status
 opsional. Payload relasi adalah kondisi lengkap yang diinginkan, bukan PATCH:
@@ -68,6 +75,7 @@ terbaru tetap mengizinkan satu barang dari beberapa Vendor:
 | FK UUID | Referensi PK UUID | Aturan |
 |---|---|---|
 | items.unit_id | units.id | Satuan barang |
+| items.category_id | categories.id | Kategori produk opsional; NULL berarti belum dikategorikan |
 | vendor_items.item_id | items.id | Barang consignment |
 | vendor_items.vendor_id | vendors.id | Vendor pemasok/titipan |
 | vendor_items.location_id | locations.id | Satu lokasi utama per pasangan barang–Vendor |
@@ -83,7 +91,7 @@ Vendor tetap menggunakan tabel penghubung.
 
 ## Tabel bawaan Laravel dan konversi UUID
 
-Semua 17 tabel memiliki PK `id` UUID: units, vendors, locations, items,
+Semua 18 tabel memiliki PK `id` UUID: categories, units, vendors, locations, items,
 vendor_items, stock_item_locations, users, master_data_imports, number_sequences,
 password_reset_tokens, sessions, cache, cache_locks, jobs, job_batches,
 failed_jobs, migrations.

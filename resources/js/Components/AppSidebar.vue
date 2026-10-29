@@ -22,6 +22,12 @@ const modules = computed(() => [
         url: page.props.routes.itemsIndex,
     },
     {
+        key: "categories",
+        label: "Kategori",
+        icon: "layers",
+        url: page.props.routes.categoriesIndex,
+    },
+    {
         key: "vendors",
         label: "Vendor",
         icon: "truck",

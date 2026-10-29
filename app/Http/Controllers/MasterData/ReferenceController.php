@@ -20,9 +20,9 @@ class ReferenceController extends Controller
         $model = $definition['model'];
         $input = $request->validated();
         $filters = ['q' => trim($input['q'] ?? ''), 'status' => $input['status'] ?? 'all', 'sort' => $input['sort'] ?? 'code', 'direction' => $input['direction'] ?? 'asc', 'per_page' => (int) ($input['per_page'] ?? 10)];
-        $query = $model::query()->withCount(['vendorItems as vendor_usage_count' => fn ($query) => $query->active()]);
-        if ($resource === 'locations') {
-            $query->withCount(['stockItemLocations as stock_usage_count' => fn ($query) => $query->active()]);
+        $query = $model::query();
+        foreach ($definition['usage_relations'] as $index => $relation) {
+            $query->withCount([$relation.' as usage_count_'.$index => fn ($query) => $query->active()]);
         }
         if ($filters['q'] !== '') {
             $term = '%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $filters['q']).'%';
@@ -38,7 +38,7 @@ class ReferenceController extends Controller
         $records->through(fn ($record) => [
             'id' => $record->id, 'code' => $record->{$definition['code']}, 'name' => $record->{$definition['name']}, 'pic_name' => $record->pic_name,
             'is_active' => $record->is_active, 'is_system' => $resource === 'locations' && $record->location_code === Location::UNASSIGNED,
-            'usage_count' => (int) $record->vendor_usage_count + (int) ($record->stock_usage_count ?? 0),
+            'usage_count' => array_sum(array_map(fn ($index) => (int) $record->{'usage_count_'.$index}, array_keys($definition['usage_relations']))),
             'can_update' => $request->user()->can('update', $record), 'update_url' => route($resource.'.update', $record->id), 'status_url' => route($resource.'.status', $record->id),
         ]);
         $total = $model::count();

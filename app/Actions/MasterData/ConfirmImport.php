@@ -13,9 +13,9 @@ use Illuminate\Validation\ValidationException;
 
 class ConfirmImport
 {
-    public function handle(MasterDataImport $import, bool $acknowledgeSkipped): MasterDataImport
+    public function handle(MasterDataImport $import, bool $acknowledgeSkipped, bool $acknowledgeIgnoredColumns = false): MasterDataImport
     {
-        return DB::transaction(function () use ($import, $acknowledgeSkipped) {
+        return DB::transaction(function () use ($import, $acknowledgeSkipped, $acknowledgeIgnoredColumns) {
             $batch = MasterDataImport::query()->lockForUpdate()->findOrFail($import->id);
             if ($batch->status === 'completed') {
                 return $batch;
@@ -30,7 +30,11 @@ class ConfirmImport
             if ($plan['summary']['skipped_rows'] > 0 && ! $acknowledgeSkipped) {
                 throw ValidationException::withMessages(['acknowledge_skipped' => 'Konfirmasikan bahwa baris yang ditandai akan dilewati.']);
             }
-            $result = ['created' => 0, 'updated' => 0, 'skipped_rows' => $plan['summary']['skipped_rows'], 'source_rows' => $plan['summary']['source_rows'], 'items' => []];
+            $ignoredColumns = $batch->data['ignored_columns'] ?? [];
+            if ($ignoredColumns && ! $acknowledgeIgnoredColumns) {
+                throw ValidationException::withMessages(['acknowledge_ignored_columns' => 'Konfirmasikan bahwa kolom di luar template tidak akan diimport: '.implode(', ', $ignoredColumns).'.']);
+            }
+            $result = ['created' => 0, 'updated' => 0, 'skipped_rows' => $plan['summary']['skipped_rows'], 'source_rows' => $plan['summary']['source_rows'], 'items' => [], 'ignored_columns' => $ignoredColumns];
             foreach ($plan['groups'] as $group) {
                 if ($group['state'] !== 'valid') {
                     continue;
@@ -40,7 +44,7 @@ class ConfirmImport
                     $target = $group['action'] === 'match' ? Item::where('item_code', $group['target_code'])->lockForUpdate()->firstOrFail() : null;
                     $first = $rows[0];
                     $data = $target ? ItemPayload::from($target) : ['vendor_items' => [], 'stock_locations' => []];
-                    foreach (['part_number', 'item_name', 'ownership_type', 'unit_id', 'minimum_stock', 'is_active', 'tracking_type'] as $field) {
+                    foreach (['part_number', 'item_name', 'ownership_type', 'unit_id', 'category_id', 'minimum_stock', 'is_active', 'tracking_type'] as $field) {
                         $data[$field] = $first[$field];
                     }
                     $vendorRows = collect($data['vendor_items'])->keyBy('vendor_id');

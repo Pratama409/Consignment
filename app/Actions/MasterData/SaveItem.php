@@ -3,6 +3,7 @@
 namespace App\Actions\MasterData;
 
 use App\Enums\OwnershipType;
+use App\Models\Category;
 use App\Models\Item;
 use App\Models\Unit;
 use App\Support\ItemCodeGenerator;
@@ -28,6 +29,7 @@ class SaveItem
             'ownership_type' => ['required', Rule::enum(OwnershipType::class)],
             'tracking_type' => ['sometimes', Rule::in(['QUANTITY'])],
             'unit_id' => ['required', 'uuid', Rule::exists('units', 'id')],
+            'category_id' => ['sometimes', 'nullable', 'uuid', Rule::exists('categories', 'id')],
             'minimum_stock' => ['required', 'numeric', 'min:0', 'decimal:0,4'],
             'is_active' => ['sometimes', 'boolean'],
             'vendor_items' => ['sometimes', 'array', 'prohibited_if:ownership_type,STOCK'],
@@ -51,6 +53,8 @@ class SaveItem
             'unit_id.required' => 'Pilih satuan barang.',
             'unit_id.uuid' => 'Pilihan satuan tidak valid.',
             'unit_id.exists' => 'Satuan tidak ditemukan. Muat ulang pilihan satuan.',
+            'category_id.uuid' => 'Pilihan kategori tidak valid.',
+            'category_id.exists' => 'Kategori tidak ditemukan. Muat ulang pilihan kategori.',
             'minimum_stock.required' => 'Target refill wajib diisi.',
             'minimum_stock.numeric' => 'Target refill harus berupa angka.',
             'minimum_stock.min' => 'Target refill tidak boleh negatif.',
@@ -86,7 +90,7 @@ class SaveItem
             $isNew = ! $record->exists;
             $attributes = Arr::only($validated, [
                 'part_number', 'item_name', 'ownership_type', 'tracking_type',
-                'unit_id', 'minimum_stock', 'is_active',
+                'unit_id', 'category_id', 'minimum_stock', 'is_active',
             ]);
 
             $attributes['part_number'] = trim($attributes['part_number']);
@@ -105,6 +109,13 @@ class SaveItem
 
             if ($isNew) {
                 $record->item_code = app(ItemCodeGenerator::class)->next();
+            }
+
+            if ($record->category_id !== null && ($isNew || $record->isDirty('category_id') || ($record->isDirty('is_active') && $record->is_active))) {
+                $category = Category::query()->sharedLock()->find($record->category_id);
+                if (! $category?->is_active) {
+                    throw ValidationException::withMessages(['category_id' => 'Kategori harus terdaftar dan aktif untuk pemilihan baru atau pengaktifan barang.']);
+                }
             }
 
             $record->save();
@@ -145,7 +156,7 @@ class SaveItem
                 }
             }
 
-            return $record->refresh()->load(['unit', 'vendorItems.vendor', 'vendorItems.location', 'stockItemLocations.location']);
+            return $record->refresh()->load(['category', 'unit', 'vendorItems.vendor', 'vendorItems.location', 'stockItemLocations.location']);
         }, attempts: 3);
     }
 }

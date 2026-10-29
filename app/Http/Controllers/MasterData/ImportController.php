@@ -4,6 +4,7 @@ namespace App\Http\Controllers\MasterData;
 
 use App\Actions\MasterData\ConfirmImport;
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use App\Models\Item;
 use App\Models\MasterDataImport;
 use App\Models\Unit;
@@ -76,7 +77,7 @@ class ImportController extends Controller
         return Inertia::render('MasterData/Import/Preview', [
             'batch' => $this->batch($import), 'groups' => $paginated, 'filters' => $filters, 'summary' => $plan['summary'],
             'references' => ['vendors' => array_slice($plan['new_vendors'], 0, 30), 'locations' => array_slice($plan['new_locations'], 0, 30)],
-            'options' => $import->options, 'source_units' => $sourceUnits, 'units' => Unit::active()->orderBy('code')->get(['id', 'code', 'name']),
+            'options' => $import->options, 'source_units' => $sourceUnits, 'units' => Unit::active()->orderBy('code')->get(['id', 'code', 'name']), 'categories' => Category::active()->orderBy('code')->get(['code', 'name']),
             'options_url' => route('imports.options', $import), 'confirm_url' => route('imports.confirm', $import),
         ]);
     }
@@ -129,9 +130,9 @@ class ImportController extends Controller
     public function confirm(Request $request, MasterDataImport $import, ConfirmImport $confirm)
     {
         $this->authorizeImport($request, $import);
-        $request->validate(['acknowledge_skipped' => ['sometimes', 'boolean']]);
+        $request->validate(['acknowledge_skipped' => ['sometimes', 'boolean'], 'acknowledge_ignored_columns' => ['sometimes', 'boolean']]);
         try {
-            $confirm->handle($import, $request->boolean('acknowledge_skipped'));
+            $confirm->handle($import, $request->boolean('acknowledge_skipped'), $request->boolean('acknowledge_ignored_columns'));
         } catch (ValidationException $exception) {
             throw ValidationException::withMessages(['confirmation' => implode(' ', collect($exception->errors())->flatten()->all())]);
         }
@@ -173,6 +174,6 @@ class ImportController extends Controller
 
     private function batch(MasterDataImport $import): array
     {
-        return ['id' => $import->id, 'file_name' => $import->file_name, 'status' => $import->status, 'show_url' => route('imports.show', $import), 'expires_at' => $import->expires_at->toIso8601String(), 'confirmed_at' => $import->confirmed_at?->toIso8601String()];
+        return ['id' => $import->id, 'file_name' => $import->file_name, 'status' => $import->status, 'show_url' => route('imports.show', $import), 'expires_at' => $import->expires_at->toIso8601String(), 'confirmed_at' => $import->confirmed_at?->toIso8601String(), 'ignored_columns' => $import->data['ignored_columns'] ?? []];
     }
 }

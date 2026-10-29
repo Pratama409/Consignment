@@ -14,6 +14,7 @@ description: Tinjau rancangan dan konsistensi arsitektur proyek Consignment Inve
 ## Tahap pekerjaan
 Fokus saat ini adalah perancangan Master Data:
 - Satuan: units.
+- Kategori produk: categories; items.category_id opsional, terpisah dari ownership dan tracking.
 - Vendor: vendors.
 - Lokasi: locations.
 - Barang: items.

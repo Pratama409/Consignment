@@ -12,7 +12,7 @@ class Item extends MasterDataModel
 {
     protected $fillable = [
         'item_code', 'part_number', 'item_name', 'ownership_type', 'tracking_type',
-        'unit_id', 'minimum_stock', 'is_active',
+        'unit_id', 'category_id', 'minimum_stock', 'is_active',
     ];
 
     protected static function booted(): void
@@ -46,6 +46,11 @@ class Item extends MasterDataModel
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class);
     }
 
     public function vendorItems(): HasMany

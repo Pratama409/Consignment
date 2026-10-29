@@ -192,6 +192,11 @@ function submit() {
                         Perbaiki lokasi gabungan, angka eksponensial, dan satuan
                         yang belum dikenali.
                     </li>
+                    <li>
+                        Kategori opsional menggunakan
+                        <strong>CATEGORY_CODE</strong> dari Master Kategori.
+                        Kategori tidak dibuat atau ditebak otomatis.
+                    </li>
                 </ol>
                 <p class="page-note">
                     <AppIcon name="shield" /><span

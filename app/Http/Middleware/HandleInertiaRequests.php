@@ -14,7 +14,7 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
         $section = explode('.', $request->route()?->getName() ?? '')[0];
-        $labels = ['items' => 'Barang', 'vendors' => 'Vendor', 'units' => 'Satuan', 'locations' => 'Lokasi', 'imports' => 'Import Master PN'];
+        $labels = ['items' => 'Barang', 'vendors' => 'Vendor', 'units' => 'Satuan', 'locations' => 'Lokasi', 'categories' => 'Kategori', 'imports' => 'Import Master PN'];
 
         return [
             ...parent::share($request),
@@ -34,6 +34,7 @@ class HandleInertiaRequests extends Middleware
                 'itemsIndex' => route('items.index'),
                 'vendorsIndex' => route('vendors.index'),
                 'locationsIndex' => route('locations.index'),
+                'categoriesIndex' => route('categories.index'),
                 'importsIndex' => route('imports.index'),
                 'unitsIndex' => route('units.index'),
                 'login' => route('login'),

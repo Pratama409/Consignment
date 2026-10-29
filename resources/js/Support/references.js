@@ -1,4 +1,23 @@
 export const references = {
+    categories: {
+        key: "categories",
+        routeKey: "categoriesIndex",
+        title: "Master Kategori",
+        noun: "Kategori",
+        lower: "kategori",
+        plural: "kategori",
+        icon: "layers",
+        codeLabel: "Kode kategori",
+        nameLabel: "Nama kategori",
+        codePlaceholder: "Contoh: FILTER",
+        namePlaceholder: "Nama kelompok barang",
+        codeLength: 50,
+        nameLength: 150,
+        description:
+            "Kelola kelompok produk secara terpisah dari jenis kepemilikan barang.",
+        usage: "barang aktif",
+        note: "Kategori tidak menentukan pemilik atau cara pelacakan barang. Barang lama tetap belum dikategorikan sampai dipilih pengguna.",
+    },
     units: {
         key: "units",
         routeKey: "unitsIndex",

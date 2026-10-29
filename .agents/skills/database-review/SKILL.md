@@ -11,6 +11,7 @@ Jangan mengubah skema atau kode kecuali diminta mengimplementasikan.
 
 ## Struktur awal
 - units: id, code, name, is_active, timestamps.
+- categories: UUID id, code unik, name, is_active, timestamps; items.category_id UUID nullable.
 - vendors: id, vendor_code, vendor_name, is_active, timestamps.
 - locations: id, location_code, location_name, is_active, timestamps.
 - items: id, item_code, part_number, item_name, ownership_type,
@@ -32,6 +33,7 @@ akun, Master Data, atau preview import pengguna.
 - Foreign key harus sesuai tipe primary key yang dirujuk.
 - Lindungi referensi bisnis dari penghapusan permanen.
 - minimum_stock tidak boleh negatif.
+- Kategori baru/yang dipilih ulang harus aktif; kategori yang dipakai barang aktif tidak dapat dinonaktifkan. NULL berarti belum dikategorikan, bukan dugaan dari nama barang.
 - Jangan menambahkan unique(part_number, item_name) tanpa keputusan pengguna.
 - Simpan barang dan hubungan Vendornya dalam satu transaksi database.
 - Jangan menghapus lalu membuat ulang vendor_items yang sudah dirujuk transaksi.

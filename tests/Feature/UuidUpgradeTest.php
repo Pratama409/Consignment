@@ -22,7 +22,7 @@ class UuidUpgradeTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $paths = array_values(array_filter(glob(database_path('migrations/*.php')), fn ($file) => ! str_contains($file, '001000_convert')));
+        $paths = array_values(array_filter(glob(database_path('migrations/*.php')), fn ($file) => basename($file) < '2026_10_29_001000_'));
         $this->assertSame(0, Artisan::call('migrate:fresh', ['--path' => $paths, '--realpath' => true, '--force' => true]), Artisan::output());
         DB::table('users')->insert(['id' => 11, 'name' => 'Existing admin', 'email' => 'existing@example.test', 'password' => Hash::make('Preserved-password-123'), 'role' => 'admin']);
         DB::table('units')->insert(['id' => 7, 'code' => 'PC', 'name' => 'Piece']);

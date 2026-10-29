@@ -63,6 +63,20 @@ const page = usePage();
                     <dt>Cara pelacakan</dt>
                     <dd>Kuantitas</dd>
                 </div>
+                <div>
+                    <dt>Kategori barang</dt>
+                    <dd>
+                        {{
+                            item.category
+                                ? `${item.category.code} — ${item.category.name}`
+                                : "Belum dikategorikan"
+                        }}<small
+                            v-if="item.category && !item.category.is_active"
+                        >
+                            (nonaktif)</small
+                        >
+                    </dd>
+                </div>
             </dl>
         </section>
         <section class="surface-card form-card">
