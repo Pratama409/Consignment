@@ -109,6 +109,12 @@ return new class extends Migration
 
         foreach (['INSERT', 'UPDATE'] as $event) {
             $suffix = strtolower($event);
+            // Keep every inventory quantity within the same ten-integer/four-decimal range as its DTO.
+            // SQLite NUMERIC has no fixed scale; reject excess precision instead of silently losing it.
+            foreach (['stock_ledger_entries' => ['quantity'], 'stock_balances' => ['quantity'], 'stock_lots' => ['original_quantity', 'remaining_quantity'], 'stock_lot_allocations' => ['quantity']] as $table => $columns) {
+                $invalid = implode(' OR ', array_map(fn ($column) => "ABS(NEW.{$column}) >= 10000000000 OR NEW.{$column} <> ROUND(NEW.{$column}, 4)", $columns));
+                $this->guard("{$table}_precision_{$suffix}", $table, $event, $invalid, 'Quantity exceeds supported four-decimal range');
+            }
             foreach (['stock_ledger_entries', 'stock_balances', 'stock_lots'] as $table) {
                 $this->guard("{$table}_bucket_{$suffix}", $table, $event, "NOT {$validBucket}", 'Invalid inventory bucket');
             }
@@ -134,6 +140,20 @@ return new class extends Migration
         $identity = implode(' AND ', array_map($same, ['id', 'stock_ledger_entry_id', 'item_id', 'vendor_item_id', 'location_id', 'bucket_key', 'received_at', 'original_quantity']));
         $this->guard('stock_lots_identity_update', 'stock_lots', 'UPDATE', "NOT ({$identity})", 'Lot identity is immutable');
         $this->guard('stock_lots_immutable_delete', 'stock_lots', 'DELETE', '1 = 1', 'Stock lots preserve inventory history');
+
+        if (DB::getDriverName() === 'sqlite') {
+            // REPLACE skips DELETE triggers when recursive_triggers is OFF. Detect all unique-key
+            // collisions before insertion so immutable history does not depend on a connection PRAGMA.
+            $collisions = [
+                'stock_transactions' => "status = 'POSTED' AND (id = NEW.id OR transaction_no = NEW.transaction_no OR idempotency_key = NEW.idempotency_key OR (source_type = NEW.source_type AND source_id = NEW.source_id) OR reversal_of_id = NEW.reversal_of_id)",
+                'stock_ledger_entries' => 'id = NEW.id OR (stock_transaction_id = NEW.stock_transaction_id AND entry_sequence = NEW.entry_sequence)',
+                'stock_lot_allocations' => 'id = NEW.id OR (stock_ledger_entry_id = NEW.stock_ledger_entry_id AND stock_lot_id = NEW.stock_lot_id)',
+                'stock_lots' => 'id = NEW.id OR stock_ledger_entry_id = NEW.stock_ledger_entry_id',
+            ];
+            foreach ($collisions as $table => $condition) {
+                $this->guard("{$table}_immutable_replace", $table, 'INSERT', "EXISTS (SELECT 1 FROM {$table} WHERE {$condition})", 'Inventory history cannot be replaced');
+            }
+        }
     }
 
     private function guard(string $name, string $table, string $event, string $condition, string $message): void

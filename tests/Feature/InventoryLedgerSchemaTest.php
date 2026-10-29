@@ -14,6 +14,8 @@ use App\Models\Item;
 use App\Models\Location;
 use App\Models\StockBalance;
 use App\Models\StockLedgerEntry;
+use App\Models\StockLot;
+use App\Models\StockLotAllocation;
 use App\Models\StockTransaction;
 use App\Models\Unit;
 use App\Models\User;
@@ -226,9 +228,109 @@ class InventoryLedgerSchemaTest extends TestCase
         $this->assertSame('2.0000', (new StockPostingLineData($this->item->id, null, $this->location->id, StockDirection::In, '2'))->quantity);
     }
 
+    private function replaceRow(string $table, array $row): void
+    {
+        $columns = implode(', ', array_map(fn ($column) => "`{$column}`", array_keys($row)));
+        $parameters = implode(', ', array_fill(0, count($row), '?'));
+        $verb = DB::getDriverName() === 'sqlite' ? 'INSERT OR REPLACE' : 'REPLACE';
+        DB::statement("{$verb} INTO `{$table}` ({$columns}) VALUES ({$parameters})", array_values($row));
+    }
+
+    public function test_replacement_cannot_rewrite_immutable_history_with_recursive_triggers_disabled(): void
+    {
+        if (DB::getDriverName() === 'sqlite') {
+            DB::statement('PRAGMA recursive_triggers = OFF');
+        }
+        $transaction = $this->transaction(['type' => StockTransactionType::Reversal, 'reversal_of_id' => $this->transaction()->id]);
+        $entry = $this->entry($this->transaction());
+        $lot = $entry->lot()->create([...$this->bucket(), 'received_at' => $entry->transaction->posted_at, 'original_quantity' => '12.3456', 'remaining_quantity' => '12.3456']);
+        $out = $this->entry($this->transaction(), ['quantity' => '-0.1234']);
+        $allocation = $out->lotAllocations()->create(['stock_lot_id' => $lot->id, 'quantity' => '0.1234']);
+        $unreferenced = $this->entry($this->transaction());
+        $lotEntry = $this->entry($this->transaction());
+        $unallocatedLot = $lotEntry->lot()->create([...$this->bucket(), 'received_at' => $lotEntry->transaction->posted_at, 'original_quantity' => '12.3456', 'remaining_quantity' => '12.3456']);
+
+        foreach ([$transaction, $unreferenced, $allocation, $unallocatedLot] as $model) {
+            $original = $model->fresh()->getAttributes();
+            $column = $model instanceof StockTransaction ? 'reason' : ($model instanceof StockLot ? 'original_quantity' : 'quantity');
+            $alternative = [...$original, 'id' => (string) Str::uuid(), $column => $column === 'reason' ? 'Replacement' : '20.0000'];
+            if ($model instanceof StockTransaction) {
+                $alternative = [...$alternative, 'transaction_no' => 'REPLACE-'.Str::uuid(), 'idempotency_key' => (string) Str::uuid(), 'source_id' => (string) Str::uuid(), 'reversal_of_id' => null];
+                $keys = [['id'], ['transaction_no'], ['idempotency_key'], ['source_type', 'source_id'], ['reversal_of_id']];
+            } elseif ($model instanceof StockLedgerEntry) {
+                $alternative['stock_transaction_id'] = $this->transaction()->id;
+                $keys = [['id'], ['stock_transaction_id', 'entry_sequence']];
+            } elseif ($model instanceof StockLotAllocation) {
+                $alternative['stock_ledger_entry_id'] = $this->entry($this->transaction(), ['quantity' => '-20.0000'])->id;
+                $keys = [['id'], ['stock_ledger_entry_id', 'stock_lot_id']];
+            } else {
+                $alternative['stock_ledger_entry_id'] = $this->entry($this->transaction(), ['quantity' => '20.0000'])->id;
+                $keys = [['id'], ['stock_ledger_entry_id']];
+            }
+            foreach ($keys as $key) {
+                // Each candidate conflicts on only one unique key, so other constraints cannot mask a gap.
+                $candidate = [...$alternative, ...array_intersect_key($original, array_flip($key))];
+                $this->assertDatabaseRejects(fn () => $this->replaceRow($model->getTable(), $candidate));
+                $this->assertSame($original, $model->fresh()->getAttributes());
+            }
+        }
+    }
+
+    public function test_supported_quantity_boundaries_round_trip_four_decimals_across_every_inventory_table(): void
+    {
+        foreach (['0.0001', '9999999999.9998', '9999999999.9999'] as $quantity) {
+            $line = new StockPostingLineData($this->item->id, null, $this->location->id, StockDirection::In, $quantity);
+            $entry = $this->entry($this->transaction(), ['quantity' => $line->quantity]);
+            $balance = StockBalance::updateOrCreate($this->bucket(), ['quantity' => $line->quantity]);
+            $lot = $entry->lot()->create([...$this->bucket(), 'received_at' => $entry->transaction->posted_at, 'original_quantity' => $line->quantity, 'remaining_quantity' => $line->quantity]);
+            $out = $this->entry($this->transaction(), ['quantity' => '-'.$line->quantity]);
+            $allocation = $out->lotAllocations()->create(['stock_lot_id' => $lot->id, 'quantity' => $line->quantity]);
+            foreach ([$entry, $balance, $allocation] as $model) {
+                $this->assertSame($quantity, $model->fresh()->quantity);
+            }
+            $this->assertSame('-'.$quantity, $out->fresh()->quantity);
+            $this->assertSame($quantity, $lot->fresh()->original_quantity);
+            $this->assertSame($quantity, $lot->fresh()->remaining_quantity);
+        }
+    }
+
+    public function test_database_rejects_quantities_outside_the_cross_database_supported_range(): void
+    {
+        $entry = $this->entry($this->transaction());
+        $balance = StockBalance::create([...$this->bucket(), 'quantity' => '12.3456']);
+        $lot = $entry->lot()->create([...$this->bucket(), 'received_at' => $entry->transaction->posted_at, 'original_quantity' => '12.3456', 'remaining_quantity' => '12.3456']);
+        $out = $this->entry($this->transaction(), ['quantity' => '-0.1234']);
+        $allocation = $out->lotAllocations()->create(['stock_lot_id' => $lot->id, 'quantity' => '0.1234']);
+        foreach ([$entry, $balance, $lot, $allocation] as $model) {
+            $columns = $model instanceof StockLot ? ['original_quantity', 'remaining_quantity'] : ['quantity'];
+            foreach ($columns as $column) {
+                $invalid = ['10000000000.0000', '12345678901234.1234', '-12345678901234.1234'];
+                if (DB::getDriverName() === 'sqlite') {
+                    // MySQL DECIMAL rounds input to the declared scale before its triggers run.
+                    $invalid[] = '1.23456';
+                }
+                foreach ($invalid as $quantity) {
+                    $row = [...$model->getAttributes(), 'id' => (string) Str::uuid(), $column => $quantity];
+                    if ($model instanceof StockLedgerEntry) {
+                        $row['entry_sequence'] = 2;
+                    } elseif ($model instanceof StockLot) {
+                        $row['stock_ledger_entry_id'] = $this->entry($this->transaction())->id;
+                    } elseif ($model instanceof StockLotAllocation) {
+                        $row['stock_ledger_entry_id'] = $this->entry($this->transaction(), ['quantity' => '-0.1234'])->id;
+                    } elseif ($model instanceof StockBalance) {
+                        $this->assertDatabaseRejects(fn () => DB::table('stock_balances')->where('id', $model->id)->update([$column => $quantity]));
+
+                        continue;
+                    }
+                    $this->assertDatabaseRejects(fn () => DB::table($model->getTable())->insert($row));
+                }
+            }
+        }
+    }
+
     public static function invalidQuantities(): array
     {
-        return array_map(fn ($quantity) => [$quantity], ['0', '-0.0001', '0.00000', '1.23456', '1e3', 'NaN', '', '100000000000000.0000']);
+        return array_map(fn ($quantity) => [$quantity], ['0', '-0.0001', '0.00000', '1.23456', '1e3', 'NaN', '', '10000000000.0000', '12345678901234.1234', '100000000000000.0000']);
     }
 
     #[DataProvider('invalidQuantities')]
