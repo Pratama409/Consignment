@@ -10,7 +10,7 @@ class UnitPolicy
 {
     public function viewAny(User $user): bool
     {
-        return true;
+        return ! $user->isVendor();
     }
 
     public function create(User $user): bool

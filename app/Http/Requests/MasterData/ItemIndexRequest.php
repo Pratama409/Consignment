@@ -12,7 +12,8 @@ class ItemIndexRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('viewAny', Item::class) ?? false;
+        return ($this->user()?->can('viewAny', Item::class) ?? false)
+            && (! $this->user()->isVendor() || ! $this->filled('vendor') || $this->input('vendor') === $this->user()->vendor_id);
     }
 
     public function rules(): array

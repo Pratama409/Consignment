@@ -14,7 +14,7 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
         $section = explode('.', $request->route()?->getName() ?? '')[0];
-        $labels = ['items' => 'Barang', 'vendors' => 'Vendor', 'units' => 'Satuan', 'locations' => 'Lokasi', 'categories' => 'Kategori', 'imports' => 'Import Master PN'];
+        $labels = ['users' => 'Manajemen Pengguna', 'items' => 'Barang', 'vendors' => 'Vendor', 'units' => 'Satuan', 'locations' => 'Lokasi', 'categories' => 'Kategori', 'imports' => 'Import Master PN'];
 
         return [
             ...parent::share($request),
@@ -25,7 +25,14 @@ class HandleInertiaRequests extends Middleware
                     'email' => $user->email,
                     'role' => $user->role->value,
                     'role_label' => $user->role->label(),
+                    'vendor_id' => $user->isVendor() ? $user->vendor_id : null,
+                    'vendor_name' => $user->isVendor() ? $user->vendor?->vendor_name : null,
                 ] : null,
+                'abilities' => [
+                    'manage_users' => $user?->isAdmin() ?? false,
+                    'manage_master_data' => $user?->isAdmin() ?? false,
+                    'view_reference_masters' => $user ? ! $user->isVendor() : false,
+                ],
             ],
             'flash' => fn (): array => [
                 'success' => $request->session()->get('success'),
@@ -37,6 +44,7 @@ class HandleInertiaRequests extends Middleware
                 'categoriesIndex' => route('categories.index'),
                 'importsIndex' => route('imports.index'),
                 'unitsIndex' => route('units.index'),
+                'usersIndex' => route('users.index'),
                 'login' => route('login'),
                 'logout' => route('logout'),
             ],

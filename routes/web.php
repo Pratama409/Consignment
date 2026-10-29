@@ -6,6 +6,8 @@ use App\Http\Controllers\MasterData\ItemController;
 use App\Http\Controllers\MasterData\ItemExportController;
 use App\Http\Controllers\MasterData\ReferenceController;
 use App\Http\Controllers\MasterData\UnitController;
+use App\Http\Controllers\UserManagement\UserController;
+use App\Http\Middleware\EnsureActiveUser;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -13,7 +15,13 @@ Route::middleware('guest')->group(function () {
     Route::post('/login', [AuthenticatedSessionController::class, 'store']);
 });
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', EnsureActiveUser::class])->group(function () {
+    Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
+    Route::post('/users', [UserController::class, 'store'])->name('users.store');
+    Route::get('/users/{user}/edit', [UserController::class, 'edit'])->whereUuid('user')->name('users.edit');
+    Route::put('/users/{user}', [UserController::class, 'update'])->whereUuid('user')->name('users.update');
+    Route::patch('/users/{user}/status', [UserController::class, 'status'])->whereUuid('user')->name('users.status');
     Route::get('/', fn () => to_route('items.index'))->name('home');
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
     Route::get('/master-data/satuan', [UnitController::class, 'index'])->name('units.index');

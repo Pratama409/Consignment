@@ -27,7 +27,8 @@ class ItemController extends Controller
         $filters['category'] ??= 'all';
         $filters['vendor'] ??= '';
         $filters['location'] ??= '';
-        $items = $query->make($filters)->with(['unit', 'category', 'vendorItems' => fn ($query) => $query->active()->with(['vendor', 'location']), 'stockItemLocations' => fn ($query) => $query->active()->with('location')])->withCount(['vendorItems as vendor_count' => fn ($query) => $query->active()])->paginate((int) $filters['per_page'])->withQueryString();
+        $vendorId = $request->user()->isVendor() ? $request->user()->vendor_id : null;
+        $items = $query->make($filters, $request->user())->with(['unit', 'category', 'vendorItems' => fn ($query) => $query->active()->when($vendorId, fn ($query) => $query->where('vendor_id', $vendorId))->with(['vendor', 'location']), 'stockItemLocations' => fn ($query) => $query->active()->with('location')])->withCount(['vendorItems as vendor_count' => fn ($query) => $query->active()->when($vendorId, fn ($query) => $query->where('vendor_id', $vendorId))])->paginate((int) $filters['per_page'])->withQueryString();
         if ($items->currentPage() > $items->lastPage()) {
             return to_route('items.index', [...$filters, 'page' => $items->lastPage()]);
         }
@@ -36,12 +37,12 @@ class ItemController extends Controller
             'category' => $item->category?->only('code', 'name', 'is_active'),
             'placements' => $item->ownership_type->value === 'CONSIGNMENT' ? $item->vendorItems->map(fn ($link) => ['vendor_code' => $link->vendor->vendor_code, 'location_code' => $link->location->location_code])->values()->all() : $item->stockItemLocations->map(fn ($link) => ['vendor_code' => null, 'location_code' => $link->location->location_code])->values()->all(),
             'show_url' => route('items.show', $item), 'edit_url' => route('items.edit', $item), 'status_url' => route('items.status', $item), 'can_update' => $request->user()->can('update', $item)]);
-        $total = Item::count();
-        $active = Item::active()->count();
+        $total = $query->make([], $request->user())->count();
+        $active = $query->make(['status' => 'active'], $request->user())->count();
 
         return Inertia::render('MasterData/Items/Index', ['items' => $items, 'filters' => $filters, 'summary' => ['total' => $total, 'active' => $active, 'inactive' => $total - $active],
             'can' => ['create' => $request->user()->can('create', Item::class)], 'create_url' => route('items.create'), 'export_url' => route('items.export', $request->validated()),
-            'options' => ['categories' => Category::orderBy('code')->get(['id', 'code', 'name', 'is_active']), 'vendors' => Vendor::orderBy('vendor_code')->get(['id', 'vendor_code', 'vendor_name', 'is_active']), 'locations' => Location::orderBy('location_code')->get(['id', 'location_code', 'location_name', 'is_active'])]]);
+            'options' => ['categories' => $vendorId ? [] : Category::orderBy('code')->get(['id', 'code', 'name', 'is_active']), 'vendors' => Vendor::when($vendorId, fn ($query) => $query->whereKey($vendorId))->orderBy('vendor_code')->get(['id', 'vendor_code', 'vendor_name', 'is_active']), 'locations' => $vendorId ? [] : Location::orderBy('location_code')->get(['id', 'location_code', 'location_name', 'is_active'])]]);
     }
 
     public function create()
@@ -108,7 +109,8 @@ class ItemController extends Controller
 
     private function serialize(Item $item): array
     {
-        $item->load(['category', 'unit', 'vendorItems.vendor', 'vendorItems.location', 'stockItemLocations.location']);
+        $vendorId = auth()->user()->isVendor() ? auth()->user()->vendor_id : null;
+        $item->load(['category', 'unit', 'vendorItems' => fn ($query) => $query->when($vendorId, fn ($query) => $query->active()->where('vendor_id', $vendorId))->with(['vendor', 'location']), 'stockItemLocations.location']);
 
         return [...$item->only('id', 'item_code', 'part_number', 'item_name', 'unit_id', 'category_id', 'minimum_stock', 'is_active'), 'ownership_type' => $item->ownership_type->value, 'tracking_type' => $item->tracking_type->value,
             'category' => $item->category?->only('id', 'code', 'name', 'is_active'),

@@ -13,7 +13,7 @@ class ItemExportController extends Controller
 {
     public function index(ItemIndexRequest $request, ItemListQuery $query, WorkbookExporter $exporter)
     {
-        return $exporter->download($query->make($request->validated()));
+        return $exporter->download($query->make($request->validated(), $request->user()), vendorId: $request->user()->isVendor() ? $request->user()->vendor_id : null);
     }
 
     public function template(WorkbookExporter $exporter)

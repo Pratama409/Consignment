@@ -55,7 +55,10 @@ const modules = computed(() => [
               },
           ]
         : []),
-]);
+    ...(page.props.auth.abilities.manage_users
+        ? [{ key: "users", label: "Manajemen Pengguna", icon: "shield", url: page.props.routes.usersIndex }]
+        : []),
+].filter((module) => page.props.auth.abilities.view_reference_masters || !["categories", "units", "locations"].includes(module.key)));
 </script>
 <template>
     <div class="sidebar-content">

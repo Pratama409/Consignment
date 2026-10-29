@@ -10,12 +10,12 @@ class MasterDataPolicy
 {
     public function viewAny(User $user): bool
     {
-        return true;
+        return ! $user->isVendor();
     }
 
     public function view(User $user, Model $record): bool
     {
-        return true;
+        return ! $user->isVendor();
     }
 
     public function create(User $user): bool
