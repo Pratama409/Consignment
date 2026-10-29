@@ -59,7 +59,10 @@ const modules = computed(() => [
         ? [{ key: "users", label: "Manajemen Pengguna", icon: "shield", url: page.props.routes.usersIndex }]
         : []),
     ...(page.props.auth.abilities.view_reference_masters
-        ? [{ key: "shifts", label: "Pengaturan Shift", icon: "layers", url: page.props.routes.shiftsIndex }]
+        ? [
+              { key: "opening-balances", label: "Saldo Awal", icon: "upload", url: page.props.routes.openingBalancesIndex },
+              { key: "shifts", label: "Pengaturan Shift", icon: "layers", url: page.props.routes.shiftsIndex },
+          ]
         : []),
 ].filter((module) => page.props.auth.abilities.view_reference_masters || !["categories", "units", "locations"].includes(module.key)));
 </script>
