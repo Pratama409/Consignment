@@ -14,6 +14,7 @@ use App\Models\AuditLog;
 use App\Models\InventoryPeriod;
 use App\Models\Item;
 use App\Models\Location;
+use App\Models\OpeningBalanceBatch;
 use App\Models\StockBalance;
 use App\Models\StockItemLocation;
 use App\Models\StockLot;
@@ -24,13 +25,10 @@ use App\Models\Vendor;
 use App\Models\VendorItem;
 use Carbon\CarbonImmutable;
 use Database\Seeders\MasterDataSeeder;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
@@ -257,14 +255,9 @@ class StockPostingTest extends TestCase
 
     public function test_registered_source_is_locked_linked_and_missing_source_is_rejected(): void
     {
-        Schema::create('posting_test_sources', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
-            $table->uuid('inventory_period_id');
-            $table->uuid('stock_transaction_id')->nullable();
-        });
-        Relation::morphMap(['posting_test_source' => PostingTestSource::class]);
+        Relation::morphMap(['posting_test_source' => OpeningBalanceBatch::class]);
         try {
-            $source = PostingTestSource::create(['inventory_period_id' => $this->period->id]);
+            $source = OpeningBalanceBatch::create(['inventory_period_id' => $this->period->id, 'source' => 'posting-test', 'created_by' => $this->actor->id]);
             $base = $this->data([$this->line()]);
             $data = new StockPostingData($base->type, 'posting_test_source', $source->id, $base->physicalOccurredAt, $base->actorId, $base->idempotencyKey, $base->reason, $base->lines);
             $transaction = app(PostStockIn::class)->handle($data);
@@ -273,13 +266,12 @@ class StockPostingTest extends TestCase
             $this->reject(fn () => app(PostStockIn::class)->handle($missing));
             $this->period->update(['status' => 'DRAFT']);
             $otherPeriod = InventoryPeriod::create(['cutoff_at' => '2026-10-26 00:00:00']);
-            $otherSource = PostingTestSource::create(['inventory_period_id' => $otherPeriod->id]);
+            $otherSource = OpeningBalanceBatch::create(['inventory_period_id' => $otherPeriod->id, 'source' => 'posting-test-other', 'created_by' => $this->actor->id]);
             $mismatch = new StockPostingData(StockTransactionType::Opening, 'posting_test_source', $otherSource->id, $base->physicalOccurredAt, $base->actorId, (string) Str::uuid(), null, $base->lines);
             $this->reject(fn () => app(PostStockIn::class)->handleOpening($mismatch, $this->period));
             $this->assertDatabaseCount('stock_transactions', 1);
         } finally {
             Relation::morphMap([], false);
-            Schema::dropIfExists('posting_test_sources');
         }
     }
 
@@ -313,15 +305,4 @@ class StockPostingTest extends TestCase
         $this->assertSame('1.0000', StockBalance::sole()->quantity);
         $this->assertDatabaseCount('stock_transactions', 1);
     }
-}
-
-class PostingTestSource extends Model
-{
-    use HasUuids;
-
-    protected $table = 'posting_test_sources';
-
-    protected $guarded = [];
-
-    public $timestamps = false;
 }

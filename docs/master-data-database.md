@@ -32,7 +32,47 @@ Angka jumlah, nomor urut, dan timestamp tetap bertipe numerik.
 Ownership dikunci setelah dibuat. Minimum tidak negatif dan dapat diedit;
 nilainya berlaku sama untuk setiap Vendor dari barang tersebut. SERIALIZED
 dicadangkan di skema; alur penyimpanan v1 hanya menerima QUANTITY. QR dan
-transaksi stok belum dibuat.
+tracking serial masih ditunda. Fondasi transaksi quantity, opening balance,
+koreksi, dan reversal sudah tersedia.
+
+## Role, shift, dan inventory ledger
+
+Role operasional hanya `admin`, `warehouse`, dan `vendor`. User Vendor wajib
+memiliki `vendor_id`; satu Vendor dapat memiliki beberapa akun. Akun nonaktif
+kehilangan akses pada request berikutnya. Perubahan user dicatat dalam
+`audit_logs`.
+
+Jadwal default menggunakan WITA: DAY 06:00–18:00 dan NIGHT 18:00–06:00.
+`shift_definitions` menyimpan versi efektif, sedangkan `operational_shifts`
+menyimpan instance historis immutable. Waktu `posted_at` menentukan shift;
+tanggal fisik transaksi hanya menjadi referensi dan indikator late posting.
+
+Tabel inventory utama:
+
+- `inventory_periods`: status DRAFT, ACTIVE, atau CLOSED.
+- `stock_transactions`: header posting immutable dengan source dan idempotency key unik.
+- `stock_ledger_entries`: mutasi quantity bertanda; sumber kebenaran stok.
+- `stock_balances`: satu saldo per `bucket_key` non-null.
+- `stock_lots` dan `stock_lot_allocations`: penerimaan dan konsumsi FIFO.
+- `opening_balance_batches`/`opening_balance_lines`: preview saldo awal sebelum aktivasi.
+- `stock_adjustments`: draft, approval/rejection, dan hubungan ke transaksi posting.
+
+Bucket internal berbentuk `STOCK:{item_uuid}:{location_uuid}`. Bucket milik
+Vendor berbentuk `CONSIGNMENT:{vendor_item_uuid}:{location_uuid}`. Quantity
+didukung dari `0.0001` sampai `9999999999.9999` dengan empat angka desimal.
+Ledger yang sudah POSTED tidak boleh diubah atau dihapus. Koreksi menghasilkan
+posting baru; reversal menghasilkan entry berlawanan dan mempertahankan link ke
+transaksi asal.
+
+Opening balance wajib melalui upload/preview dan hanya Admin yang dapat
+mengaktifkan. Aktivasi memposting semua bucket satu kali dan mengubah periodenya
+menjadi ACTIVE secara atomik. Preview, batch yang ditolak, atau draft koreksi
+tidak mengubah stok.
+
+Migration database aplikasi utama memerlukan instruksi eksplisit, backup, dan
+maintenance window. Test MySQL hanya boleh memakai database terisolasi
+`consignment_testing`; batas pemulihan konversi UUID tetap bergantung pada
+snapshot terenkripsi dan APP_KEY yang sama.
 
 ## Batas constraint database dan aturan aplikasi
 

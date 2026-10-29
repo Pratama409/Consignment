@@ -1,5 +1,58 @@
 # Consignment Control Center
 
+Fondasi aplikasi operasional consignment berbasis Laravel, Inertia, dan Vue.
+Role yang tersedia adalah **Admin**, **Warehouse**, dan **Vendor**. Admin
+mengelola user, jadwal shift, saldo awal, approval koreksi, dan reversal;
+Warehouse menjalankan pekerjaan gudang serta membuat draft koreksi; Vendor
+hanya melihat data barang yang terhubung ke Vendor akunnya.
+
+## Menjalankan secara lokal
+
+```powershell
+composer install
+npm install
+php artisan migrate --seed
+php artisan serve
+npm run dev
+```
+
+Pembuatan Admin dilakukan secara interaktif agar password tidak muncul dalam
+command history:
+
+```powershell
+php artisan app:create-admin
+```
+
+Jangan menjalankan migration pada database utama atau production tanpa backup,
+maintenance window, dan instruksi eksplisit. Pengujian MySQL harus memakai
+database `consignment_testing`; SQLite `:memory:` dipakai oleh test default.
+
+## Fondasi inventory
+
+- Shift default WITA: DAY 06:00–18:00 dan NIGHT 18:00–06:00. Perubahan hanya
+  berlaku ke depan dan tidak mengelompokkan ulang instance historis.
+- Opening balance menggunakan alur upload XLSX → preview → aktivasi Admin.
+  Preview tidak mengubah stok.
+- `stock_ledger_entries` adalah sumber kebenaran immutable. Saldo dan lot adalah
+  proyeksi terkunci dari ledger, bukan data yang diedit bebas.
+- Posting memakai idempotency key dan transaksi database. Quantity menggunakan
+  empat desimal dengan rentang lintas database `0.0001–9999999999.9999`.
+- Koreksi dibuat sebagai draft, direview Admin, lalu diposting. Reversal membuat
+  transaksi lawan dan tidak menghapus histori asli.
+
+## Pemeriksaan
+
+```powershell
+php artisan test --compact
+php vendor/bin/pint --test
+npm run build
+npm run test:browser
+php vendor/phpunit/phpunit/phpunit -c phpunit.mysql.xml
+```
+
+Perintah MySQL terakhir hanya dijalankan setelah koneksi test terisolasi telah
+diverifikasi. Jangan arahkan konfigurasi test ke database aplikasi.
+
 Panduan website, alur Master Data, import/export Excel, dan cara menjalankan:
 [Master Data UI](docs/master-data-ui.md). Aturan skema dan relasi:
 [Database Master Data](docs/master-data-database.md). Panduan visual:
