@@ -3,11 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
 
 abstract class MasterDataModel extends Model
 {
+    use HasUuids;
+
     protected $attributes = ['is_active' => true];
 
     protected static function booted(): void

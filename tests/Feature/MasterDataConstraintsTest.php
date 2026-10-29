@@ -10,6 +10,7 @@ use Database\Seeders\MasterDataSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -56,14 +57,14 @@ class MasterDataConstraintsTest extends TestCase
 
     public function test_database_rejects_negative_minimum_on_update(): void
     {
-        $id = DB::table('items')->insertGetId($this->itemAttributes());
+        $id = $this->insertItem();
         $this->expectException(QueryException::class);
         DB::table('items')->where('id', $id)->update(['minimum_stock' => '-1']);
     }
 
     public function test_ownership_is_immutable_even_when_model_events_are_bypassed(): void
     {
-        $id = DB::table('items')->insertGetId($this->itemAttributes());
+        $id = $this->insertItem();
         $this->expectException(QueryException::class);
         DB::table('items')->where('id', $id)->update(['ownership_type' => 'CONSIGNMENT']);
     }
@@ -95,7 +96,7 @@ class MasterDataConstraintsTest extends TestCase
 
     public function test_stock_cannot_be_linked_to_a_vendor_even_through_direct_sql(): void
     {
-        $id = DB::table('items')->insertGetId($this->itemAttributes());
+        $id = $this->insertItem();
         $vendor = Vendor::create(['vendor_code' => 'V', 'vendor_name' => 'Vendor']);
         $this->expectException(QueryException::class);
         DB::table('vendor_items')->insert(['item_id' => $id, 'vendor_id' => $vendor->id, 'location_id' => $this->locationId()]);
@@ -103,7 +104,7 @@ class MasterDataConstraintsTest extends TestCase
 
     public function test_consignment_cannot_have_stock_placements_even_through_direct_sql(): void
     {
-        $id = DB::table('items')->insertGetId([...$this->itemAttributes(), 'ownership_type' => 'CONSIGNMENT']);
+        $id = $this->insertItem(['ownership_type' => 'CONSIGNMENT']);
         $this->expectException(QueryException::class);
         DB::table('stock_item_locations')->insert(['item_id' => $id, 'location_id' => $this->locationId()]);
     }
@@ -128,7 +129,7 @@ class MasterDataConstraintsTest extends TestCase
 
     public function test_stock_placement_pair_is_unique(): void
     {
-        $id = DB::table('items')->insertGetId($this->itemAttributes());
+        $id = $this->insertItem();
         $placement = ['item_id' => $id, 'location_id' => $this->locationId()];
         DB::table('stock_item_locations')->insert($placement);
         $this->expectException(QueryException::class);
@@ -155,12 +156,20 @@ class MasterDataConstraintsTest extends TestCase
         ];
     }
 
-    private function unitId(): int
+    private function insertItem(array $changes = []): string
+    {
+        $id = (string) Str::uuid7();
+        DB::table('items')->insert([...$this->itemAttributes(), ...$changes, 'id' => $id]);
+
+        return $id;
+    }
+
+    private function unitId(): string
     {
         return Unit::where('code', 'PC')->value('id');
     }
 
-    private function locationId(): int
+    private function locationId(): string
     {
         return Location::where('location_code', Location::UNASSIGNED)->value('id');
     }

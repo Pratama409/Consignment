@@ -5,10 +5,10 @@ namespace App\Actions\MasterData;
 use App\Enums\OwnershipType;
 use App\Models\Item;
 use App\Models\Unit;
+use App\Support\ItemCodeGenerator;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -27,17 +27,17 @@ class SaveItem
             'item_name' => ['required', 'string', 'max:200'],
             'ownership_type' => ['required', Rule::enum(OwnershipType::class)],
             'tracking_type' => ['sometimes', Rule::in(['QUANTITY'])],
-            'unit_id' => ['required', 'integer', Rule::exists('units', 'id')],
+            'unit_id' => ['required', 'uuid', Rule::exists('units', 'id')],
             'minimum_stock' => ['required', 'numeric', 'min:0', 'decimal:0,4'],
             'is_active' => ['sometimes', 'boolean'],
             'vendor_items' => ['sometimes', 'array', 'prohibited_if:ownership_type,STOCK'],
             'vendor_items.*' => ['array:vendor_id,location_id,is_active'],
-            'vendor_items.*.vendor_id' => ['required', 'integer', 'distinct', Rule::exists('vendors', 'id')],
-            'vendor_items.*.location_id' => ['required', 'integer', Rule::exists('locations', 'id')],
+            'vendor_items.*.vendor_id' => ['required', 'uuid', 'distinct', Rule::exists('vendors', 'id')],
+            'vendor_items.*.location_id' => ['required', 'uuid', Rule::exists('locations', 'id')],
             'vendor_items.*.is_active' => ['sometimes', 'boolean'],
             'stock_locations' => ['sometimes', 'array', 'prohibited_if:ownership_type,CONSIGNMENT'],
             'stock_locations.*' => ['array:location_id,is_active'],
-            'stock_locations.*.location_id' => ['required', 'integer', 'distinct', Rule::exists('locations', 'id')],
+            'stock_locations.*.location_id' => ['required', 'uuid', 'distinct', Rule::exists('locations', 'id')],
             'stock_locations.*.is_active' => ['sometimes', 'boolean'],
         ], [
             'item_code.prohibited' => 'Kode internal dibuat sistem dan tidak dapat diisi manual.',
@@ -49,7 +49,7 @@ class SaveItem
             'ownership_type.enum' => 'Jenis kepemilikan tidak valid.',
             'tracking_type.in' => 'Cara pelacakan saat ini hanya kuantitas (QUANTITY).',
             'unit_id.required' => 'Pilih satuan barang.',
-            'unit_id.integer' => 'Pilihan satuan tidak valid.',
+            'unit_id.uuid' => 'Pilihan satuan tidak valid.',
             'unit_id.exists' => 'Satuan tidak ditemukan. Muat ulang pilihan satuan.',
             'minimum_stock.required' => 'Target refill wajib diisi.',
             'minimum_stock.numeric' => 'Target refill harus berupa angka.',
@@ -60,16 +60,16 @@ class SaveItem
             'vendor_items.*.vendor_id.required' => 'Pilih Vendor pada baris ini.',
             'vendor_items.*.vendor_id.distinct' => 'Vendor yang sama tidak boleh dipilih berulang.',
             'vendor_items.*.vendor_id.exists' => 'Vendor tidak ditemukan. Muat ulang pilihan Vendor.',
-            'vendor_items.*.vendor_id.integer' => 'Pilihan Vendor tidak valid.',
+            'vendor_items.*.vendor_id.uuid' => 'Pilihan Vendor tidak valid.',
             'vendor_items.*.location_id.required' => 'Pilih lokasi utama atau UNASSIGNED.',
             'vendor_items.*.location_id.exists' => 'Lokasi utama tidak ditemukan.',
-            'vendor_items.*.location_id.integer' => 'Pilihan lokasi utama tidak valid.',
+            'vendor_items.*.location_id.uuid' => 'Pilihan lokasi utama tidak valid.',
             'vendor_items.*.is_active.boolean' => 'Status hubungan Vendor tidak valid.',
             'stock_locations.prohibited_if' => 'Penempatan barang consignment diatur melalui hubungan Vendor.',
             'stock_locations.*.location_id.required' => 'Pilih lokasi atau UNASSIGNED.',
             'stock_locations.*.location_id.distinct' => 'Lokasi yang sama tidak boleh dipilih berulang.',
             'stock_locations.*.location_id.exists' => 'Lokasi tidak ditemukan. Muat ulang pilihan lokasi.',
-            'stock_locations.*.location_id.integer' => 'Pilihan lokasi tidak valid.',
+            'stock_locations.*.location_id.uuid' => 'Pilihan lokasi tidak valid.',
             'stock_locations.*.is_active.boolean' => 'Status penempatan tidak valid.',
         ])->validate();
 
@@ -104,16 +104,10 @@ class SaveItem
             }
 
             if ($isNew) {
-                // Never derive a sequence from MAX(id). The temporary code stays inside this transaction.
-                $record->item_code = 'PENDING-'.Str::random(32);
+                $record->item_code = app(ItemCodeGenerator::class)->next();
             }
 
             $record->save();
-
-            if ($isNew) {
-                $record->item_code = 'ITM-'.str_pad((string) $record->id, 6, '0', STR_PAD_LEFT);
-                $record->saveQuietly();
-            }
 
             if ($record->ownership_type === OwnershipType::Consignment) {
                 // Activate replacements first, so the last active vendor is never removed mid-save.

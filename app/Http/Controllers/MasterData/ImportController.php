@@ -84,7 +84,7 @@ class ImportController extends Controller
     public function options(Request $request, MasterDataImport $import)
     {
         $this->authorizeImport($request, $import);
-        $input = $request->validate(['create_missing' => ['required', 'boolean'], 'minimum_stock' => ['required', 'numeric', 'min:0', 'decimal:0,4', 'max:99999999999999.9999'], 'unit_map' => ['sometimes', 'array'], 'unit_map.*' => ['nullable', 'integer', 'exists:units,id']]);
+        $input = $request->validate(['create_missing' => ['required', 'boolean'], 'minimum_stock' => ['required', 'numeric', 'min:0', 'decimal:0,4', 'max:99999999999999.9999'], 'unit_map' => ['sometimes', 'array'], 'unit_map.*' => ['nullable', 'uuid', 'exists:units,id']]);
         $input['unit_map'] = array_filter($input['unit_map'] ?? [], fn ($id) => $id !== null && $id !== '');
 
         return $this->change($request, $import, fn ($record) => $record->update(['options' => $input]));

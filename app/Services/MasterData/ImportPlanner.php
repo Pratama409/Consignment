@@ -179,7 +179,7 @@ class ImportPlanner
     private function normalize(int $number, array $values, array $issues, ?Item $target, array $options): array
     {
         $unitCode = mb_strtoupper(trim($values['UOM'] ?? ''));
-        $unit = isset($options['unit_map'][$unitCode]) ? $this->units->firstWhere('id', (int) $options['unit_map'][$unitCode]) : $this->units->get($unitCode);
+        $unit = isset($options['unit_map'][$unitCode]) ? $this->units->firstWhere('id', $options['unit_map'][$unitCode]) : $this->units->get($unitCode);
         $ownership = $this->ownership($values['MATERIAL_TYPE'] ?? '');
         $vendorCode = mb_strtoupper(trim($values['VENDOR'] ?? ''));
         $locationCode = mb_strtoupper(trim($values['LOCATION'] ?? ''));

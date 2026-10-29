@@ -18,8 +18,12 @@ Jangan mengubah skema atau kode kecuali diminta mengimplementasikan.
 - vendor_items: id, item_id, vendor_id, location_id,
   is_active, timestamps.
 
-Gunakan BIGINT auto-increment sesuai rancangan awal.
-Jangan mewajibkan UUID tanpa kebutuhan dan keputusan baru.
+Keputusan terbaru pengguna: seluruh tabel memakai primary key UUID, termasuk
+tabel bawaan Laravel. FK ke tabel tersebut juga UUID dengan tipe yang sesuai.
+Pertahankan kode bisnis terpisah dari PK; periksa penyesuaian session, cache,
+queue, reset token, dan migration repository saat meninjau tabel framework.
+Migrasi dari ID numerik harus memetakan data dan relasi lama tanpa menghapus
+akun, Master Data, atau preview import pengguna.
 
 ## Pemeriksaan integritas
 - Kode satuan, Vendor, lokasi, dan barang harus unik pada tabelnya.
@@ -38,7 +42,8 @@ Jangan mewajibkan UUID tanpa kebutuhan dan keputusan baru.
 - CONSIGNMENT wajib memiliki minimal satu hubungan Vendor aktif saat disimpan.
 - Hubungan baru menggunakan Vendor dan lokasi aktif.
 - Penonaktifan hubungan terakhir barang CONSIGNMENT harus ditangani secara eksplisit.
-- Lokasi STOCK belum tercakup oleh vendor_items; laporkan sebagai keputusan terbuka.
+- Lokasi STOCK memakai tabel stock_item_locations yang merujuk master locations;
+  satu barang STOCK dapat mempunyai beberapa penempatan internal.
 - Jangan menyimpan saldo stok pada Master Data tanpa rancangan transaksi.
 
 ## Import Master PN

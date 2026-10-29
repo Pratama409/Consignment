@@ -21,7 +21,11 @@ Konfigurasi tes memakai APP_KEY khusus pengujian yang tidak dipakai aplikasi.
 - `stock_item_locations`: pasangan barang STOCK–lokasi unik, status. Mendukung
   penyimpanan lokasi internal yang berulang dalam Excel tanpa saldo stok.
 
-Semua ID menggunakan BIGINT auto-increment, FK sejenis dengan ON DELETE RESTRICT.
+Semua tabel menggunakan primary key UUID, termasuk tabel bawaan Laravel dan
+`migrations`. Kolom FK memakai UUID dengan ON DELETE RESTRICT. Pada MySQL,
+UUID disimpan sebagai CHAR(36). Model aplikasi menggunakan HasUuids Laravel
+(UUID v7); insert Query Builder yang tidak mengisi ID memakai default UUID
+database. Angka jumlah, nomor urut, dan timestamp tetap bertipe numerik.
 Ownership dikunci setelah dibuat. Minimum tidak negatif dan dapat diedit;
 nilainya berlaku sama untuk setiap Vendor dari barang tersebut. SERIALIZED
 dicadangkan di skema; alur penyimpanan v1 hanya menerima QUANTITY. QR dan
@@ -49,9 +53,72 @@ opsional. Payload relasi adalah kondisi lengkap yang diinginkan, bukan PATCH:
 relasi yang tidak dikirim dinonaktifkan. Relasi yang digunakan lagi diaktifkan
 pada ID lama. Pengganti Vendor disimpan sebelum hubungan lama dinonaktifkan.
 
-Kode ITM-000001 berasal dari ID auto-increment dan ditetapkan dalam transaksi
-yang sama dengan barang serta relasinya. Tidak menggunakan MAX(id) + 1.
-Rollback dapat meninggalkan celah nomor; kode tidak digunakan ulang.
+Kode ITM-000001 terpisah dari PK UUID. Tabel `number_sequences` memiliki PK UUID
+dan menyimpan counter numerik `last_value` untuk `item_code`. `ItemCodeGenerator`
+mengunci baris counter dalam transaksi penyimpanan barang. Tidak menggunakan
+MAX(id) + 1 atau memotong UUID. Konversi mempertahankan kode lama dan melanjutkan
+nomor sesudah kode tertinggi yang sudah ada. Nomor dari transaksi yang dibatalkan
+tidak dianggap sebagai kode barang yang telah diterbitkan.
+
+## Relasi Vendor, part, dan lokasi
+
+Vendor dan lokasi masing-masing mempunyai tabel master sendiri. Keputusan
+terbaru tetap mengizinkan satu barang dari beberapa Vendor:
+
+| FK UUID | Referensi PK UUID | Aturan |
+|---|---|---|
+| items.unit_id | units.id | Satuan barang |
+| vendor_items.item_id | items.id | Barang consignment |
+| vendor_items.vendor_id | vendors.id | Vendor pemasok/titipan |
+| vendor_items.location_id | locations.id | Satu lokasi utama per pasangan barang–Vendor |
+| stock_item_locations.item_id | items.id | Barang STOCK internal |
+| stock_item_locations.location_id | locations.id | Penempatan STOCK; dapat beberapa lokasi |
+| master_data_imports.user_id | users.id | Pemilik preview import |
+| sessions.user_id | users.id | Pemilik sesi; dapat NULL untuk tamu |
+
+`vendor_items` mempunyai PK UUID sendiri dan unique(item_id, vendor_id).
+Vendor pada list part dibaca dari relasi ini. Menambahkan satu vendor_id pada
+items akan membatasi barang menjadi satu Vendor, sehingga struktur banyak
+Vendor tetap menggunakan tabel penghubung.
+
+## Tabel bawaan Laravel dan konversi UUID
+
+Semua 17 tabel memiliki PK `id` UUID: units, vendors, locations, items,
+vendor_items, stock_item_locations, users, master_data_imports, number_sequences,
+password_reset_tokens, sessions, cache, cache_locks, jobs, job_batches,
+failed_jobs, migrations.
+
+Lookup bawaan tetap memiliki unique key yang sesuai: email pada reset password,
+key pada cache/lock, serta session_key pada sesi. Token cookie sesi tetap token
+acak Laravel; identitas baris sessions menggunakan UUID terpisah.
+`UuidDatabaseSessionHandler` menghubungkan session_key dengan baris sesi.
+`UuidDatabaseQueue` mengisi dan mengembalikan UUID saat push/release/bulk,
+sehingga antrean tidak bergantung pada insertGetId auto-increment.
+
+Migration `2026_10_29_001000_convert_all_table_primary_keys_to_uuid` mengonversi
+skema lama tanpa migrate:fresh pada database aplikasi. Hentikan worker antrean,
+pastikan jobs kosong, lalu gunakan mode pemeliharaan selama konversi:
+
+```powershell
+php artisan down --retry=30
+php artisan migrate --force
+php artisan up
+```
+
+Migration membuat snapshot terenkripsi di
+`storage/app/private/database-backups/pre-uuid-*.enc` menggunakan APP_KEY yang
+ada. Snapshot menyertakan data, skema MySQL, serta pemetaan ID lama–UUID. Simpan
+APP_KEY bersama backup secara aman untuk kebutuhan pemulihan. Pada tes isolated,
+backup file tidak dibuat. Tidak ada backup yang diekspos melalui web.
+
+Tabel tujuan disiapkan terpisah, setiap nilai/baris diverifikasi, lalu tabel
+ditukar (atomic RENAME TABLE pada MySQL). FK, pemilik sesi, pemetaan satuan pada
+preview, serta ID barang pada hasil import dikonversi bersama. Kode bisnis,
+password admin, role, dan isi Master Data dipertahankan. Guard integritas dipasang
+sebelum tabel lama dilepas. Kegagalan sebelum finalisasi mengembalikan tabel asal.
+Konversi diuji dengan data lama terisi dan kegagalan saat penyalinan maupun
+pemasangan guard. `down()` konversi sengaja tidak mengubah UUID menjadi angka;
+pemulihan ke skema lama memerlukan backup sebelum konversi.
 
 Master dinonaktifkan, bukan dihapus melalui model. Vendor/lokasi yang masih
 memiliki hubungan aktif tidak dapat dinonaktifkan. Satuan yang masih digunakan

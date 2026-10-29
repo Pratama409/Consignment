@@ -7,6 +7,7 @@ const directory = mkdtempSync(join(tmpdir(), "consignment-ui-"));
 const environment = {
     ...process.env,
     APP_ENV: "testing",
+    APP_MAINTENANCE_DRIVER: "cache",
     APP_URL: "http://127.0.0.1:8011",
     APP_KEY: "base64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
     DB_CONNECTION: "sqlite",

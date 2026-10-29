@@ -34,6 +34,8 @@ relasi, validasi, dan keputusan terbuka. Jangan membuat migration atau CRUD.
 - WAREHOUSE bukan Vendor.
 - Lokasi belum diketahui menggunakan UNASSIGNED.
 - Master yang sudah digunakan dinonaktifkan, bukan dihapus permanen.
+- Seluruh tabel memakai PK UUID, termasuk tabel bawaan Laravel; FK juga UUID.
+- Kode barang yang terlihat pengguna terpisah dari PK UUID.
 
 ## Cara meninjau
 1. Baca file proyek dan dokumentasi yang benar-benar tersedia.
@@ -44,7 +46,7 @@ relasi, validasi, dan keputusan terbuka. Jangan membuat migration atau CRUD.
 6. Jangan membawa aturan WO, PR, PO, SAP, atau MRP dari proyek lain.
 
 ## Keputusan terbuka
-- Lokasi barang STOCK belum ditentukan dalam struktur tabel.
+- Lokasi barang STOCK memakai stock_item_locations yang merujuk locations.
 - QUANTITY dan SERIALIZED adalah cara pelacakan, bukan jenis kepemilikan.
 - Jangan membangun transaksi serialized sebelum alurnya dirancang.
 

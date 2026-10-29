@@ -47,6 +47,8 @@ Transaksi stock/refill, PR/PO, serta QR/serial belum masuk tahap ini.
 ## Barang dan referensi
 
 - Kode internal dibuat server, PN boleh sama dan tanda bacanya dipertahankan.
+- ID master, relasi, akun, import, dan seluruh tabel bawaan memakai UUID. Kode
+  barang yang terlihat tetap ITM-000001 dan tidak berubah akibat konversi ID.
 - STOCK milik internal, tanpa Vendor, dapat ditempatkan pada beberapa lokasi.
 - CONSIGNMENT milik Vendor; minimal satu hubungan Vendor aktif. Setiap
   pasangan barang–Vendor memiliki satu lokasi utama. Vendor tidak boleh dipilih

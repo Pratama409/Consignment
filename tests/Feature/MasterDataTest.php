@@ -13,6 +13,7 @@ use App\Models\Vendor;
 use App\Models\VendorItem;
 use Database\Seeders\MasterDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -32,7 +33,8 @@ class MasterDataTest extends TestCase
 
         $this->assertSame(OwnershipType::Stock, $item->ownership_type);
         $this->assertSame(TrackingType::Quantity, $item->tracking_type);
-        $this->assertSame('ITM-'.str_pad((string) $item->id, 6, '0', STR_PAD_LEFT), $item->item_code);
+        $this->assertTrue(Str::isUuid($item->id));
+        $this->assertSame('ITM-000001', $item->item_code);
         $this->assertCount(0, $item->vendorItems);
 
         $updated = $this->save(['part_number' => 'PN-REVISED', 'item_name' => 'Nama diperbaiki'], $item);
@@ -359,7 +361,7 @@ class MasterDataTest extends TestCase
         return ['vendor_id' => $vendor->id, 'location_id' => $location?->id ?? $this->unassignedId()];
     }
 
-    private function unassignedId(): int
+    private function unassignedId(): string
     {
         return Location::where('location_code', Location::UNASSIGNED)->value('id');
     }
