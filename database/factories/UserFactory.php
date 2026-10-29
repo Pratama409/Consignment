@@ -2,7 +2,9 @@
 
 namespace Database\Factories;
 
+use App\Enums\UserRole;
 use App\Models\User;
+use App\Models\Vendor;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -41,5 +43,20 @@ class UserFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'email_verified_at' => null,
         ]);
+    }
+
+    public function admin(): static
+    {
+        return $this->state(fn () => ['role' => UserRole::Admin, 'vendor_id' => null]);
+    }
+
+    public function warehouse(): static
+    {
+        return $this->state(fn () => ['role' => UserRole::Warehouse, 'vendor_id' => null]);
+    }
+
+    public function vendor(Vendor $vendor): static
+    {
+        return $this->state(fn () => ['role' => UserRole::Vendor, 'vendor_id' => $vendor->getKey()]);
     }
 }

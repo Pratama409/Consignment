@@ -35,7 +35,7 @@ class UnitPageTest extends TestCase
         $unit = Unit::create(['code' => 'PC', 'name' => 'Piece']);
         $this->actingAs($user)->get(route('units.index'))->assertOk()->assertInertia(fn (Assert $page) => $page
             ->component('MasterData/Units/Index')->where('can.create', false)->where('units.data.0.can_update', false)
-            ->where('auth.user.role', 'user')->missing('auth.user.password'));
+            ->where('auth.user.role', 'warehouse')->missing('auth.user.password'));
         $this->post(route('units.store'), $this->payload())->assertForbidden();
         $this->put(route('units.update', $unit), $this->payload())->assertForbidden();
         $this->patch(route('units.status', $unit), ['is_active' => false])->assertForbidden();

@@ -43,7 +43,9 @@ class CreateAdmin extends Command
         }
 
         $admin = new User(collect($attributes)->only(['name', 'email', 'password'])->all());
-        $admin->forceFill(['role' => UserRole::Admin])->save();
+        $admin->role = UserRole::Admin;
+        $admin->vendor_id = null;
+        $admin->save();
         $this->info('Akun admin berhasil dibuat. Silakan masuk melalui halaman login.');
 
         return self::SUCCESS;

@@ -45,10 +45,12 @@ class LoginRequest extends FormRequest
             ]);
         }
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        if (! Auth::attempt([...$this->only('email', 'password'), 'is_active' => true], $this->boolean('remember'))) {
             RateLimiter::hit($key);
             throw ValidationException::withMessages(['email' => 'Email atau kata sandi tidak sesuai.']);
         }
+
+        Auth::user()->forceFill(['last_login_at' => now()])->save();
 
         RateLimiter::clear($key);
     }

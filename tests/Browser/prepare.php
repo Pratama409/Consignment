@@ -28,7 +28,7 @@ if (Artisan::call('migrate', ['--force' => true, '--no-interaction' => true]) !=
 }
 Artisan::call('db:seed', ['--class' => MasterDataSeeder::class, '--force' => true, '--no-interaction' => true]);
 
-foreach (['admin' => UserRole::Admin, 'viewer' => UserRole::User] as $name => $role) {
+foreach (['admin' => UserRole::Admin, 'viewer' => UserRole::Warehouse] as $name => $role) {
     $user = new User(['name' => $name === 'admin' ? 'Admin Pengujian' : 'Pengguna Pengujian', 'email' => $name.'@browser.test', 'password' => 'Browser-testing-password-123']);
     $user->forceFill(['role' => $role])->save();
 }
