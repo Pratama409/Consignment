@@ -66,7 +66,7 @@ class PostStock
                 }
 
                 if ($existing = $this->existing($data, true)) {
-                    return $existing;
+                    return $this->validateOpeningRetryPeriod($existing, $openingPeriod);
                 }
                 $source = $this->source($data);
                 if ($openingPeriod !== null && $source !== null && $source->getAttribute('inventory_period_id') !== $period->id) {
@@ -153,7 +153,7 @@ class PostStock
             // Re-read after rollback so a concurrent unique-key winner becomes the retry result.
             // Unrelated database failures remain errors rather than successful duplicate requests.
             if (in_array((string) ($exception->errorInfo[0] ?? ''), ['23000', '23505'], true) && ($existing = $this->existing($data, true))) {
-                return $existing;
+                return $this->validateOpeningRetryPeriod($existing, $openingPeriod);
             }
 
             throw $exception;
@@ -169,6 +169,15 @@ class PostStock
             || $existing->type !== $data->type || $existing->status !== StockTransactionStatus::Posted
             || ($byKey !== null && $bySource !== null && $byKey->id !== $bySource->id))) {
             $this->invalid('Idempotency key atau sumber sudah digunakan transaksi berbeda.');
+        }
+
+        return $existing;
+    }
+
+    private function validateOpeningRetryPeriod(StockTransaction $existing, ?InventoryPeriod $openingPeriod): StockTransaction
+    {
+        if ($openingPeriod !== null && $existing->inventory_period_id !== $openingPeriod->id) {
+            $this->invalid('Retry saldo awal tidak sesuai periode yang dikunci.');
         }
 
         return $existing;

@@ -17,6 +17,7 @@ use App\Models\Location;
 use App\Models\StockBalance;
 use App\Models\StockItemLocation;
 use App\Models\StockLot;
+use App\Models\StockTransaction;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Vendor;
@@ -223,6 +224,24 @@ class StockPostingTest extends TestCase
         $this->reject(fn () => app(PostStockOut::class)->handle($this->data([$this->line()])));
         $this->reject(fn () => app(PostStockIn::class)->handle($this->data([$this->line()], source: 'not-a-uuid')));
         $this->assertDatabaseCount('stock_transactions', 0);
+    }
+
+    public function test_opening_retry_is_idempotent_only_within_the_original_period(): void
+    {
+        $this->period->update(['status' => 'DRAFT']);
+        $otherPeriod = InventoryPeriod::create(['cutoff_at' => '2026-10-26 00:00:00']);
+        $data = $this->data([$this->line('1.0001')], type: StockTransactionType::Opening);
+        DB::transaction(function () use ($data, $otherPeriod): void {
+            $original = app(PostStockIn::class)->handleOpening($data, $this->period);
+            $this->assertSame($original->id, app(PostStockIn::class)->handleOpening($data, $this->period)->id);
+            $this->reject(fn () => app(PostStockIn::class)->handleOpening($data, $otherPeriod));
+            $this->assertSame($this->period->id, StockTransaction::sole()->inventory_period_id);
+            $this->assertSame(0, $otherPeriod->transactions()->count());
+        });
+        $this->assertSame('1.0001', StockBalance::sole()->quantity);
+        $this->assertSame('1.0001', StockLot::sole()->remaining_quantity);
+        $this->assertDatabaseCount('stock_ledger_entries', 1);
+        $this->assertDatabaseCount('audit_logs', 1);
     }
 
     public function test_opening_seam_requires_an_outer_transaction(): void
