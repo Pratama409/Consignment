@@ -14,7 +14,13 @@ const props = defineProps({
     next_date: String,
     submit_url: String,
 });
-const day = props.definitions.find((definition) => definition.code === "DAY");
+function latestDefinition(code) {
+    // The controller supplies version history newest first, including scheduled versions.
+    return props.versions?.find((definition) => definition.code === code)
+        ?? props.definitions.find((definition) => definition.code === code);
+}
+
+const day = latestDefinition("DAY");
 const form = useForm({
     code: "DAY",
     name: day?.name ?? "Siang",
@@ -24,7 +30,7 @@ const form = useForm({
 });
 
 function changeShift() {
-    const definition = props.definitions.find((definition) => definition.code === form.code);
+    const definition = latestDefinition(form.code);
     if (definition) {
         form.name = definition.name;
         form.start_time = definition.start_time;
