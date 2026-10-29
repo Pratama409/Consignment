@@ -75,6 +75,29 @@ class OperationalUserTest extends TestCase
         $this->assertTrue($vendorUser->vendor->is($vendor));
     }
 
+    public function test_rollback_refuses_vendor_accounts_before_changing_schema_or_data(): void
+    {
+        $vendor = Vendor::create(['vendor_code' => 'VN01', 'vendor_name' => 'Supplier']);
+        User::factory()->vendor($vendor)->create();
+        User::factory()->warehouse()->create();
+        $columns = Schema::getColumns('users');
+        $foreignKeys = Schema::getForeignKeys('users');
+        $users = DB::table('users')->orderBy('id')->get()->toArray();
+        $exception = null;
+
+        try {
+            (require database_path('migrations/2026_10_29_002000_expand_users_for_operational_roles.php'))->down();
+        } catch (\RuntimeException $caught) {
+            $exception = $caught;
+        }
+
+        $this->assertInstanceOf(\RuntimeException::class, $exception, 'Rollback must be refused while Vendor accounts exist.');
+        $this->assertStringContainsString('Vendor accounts exist', $exception->getMessage());
+        $this->assertSame($columns, Schema::getColumns('users'));
+        $this->assertSame($foreignKeys, Schema::getForeignKeys('users'));
+        $this->assertEquals($users, DB::table('users')->orderBy('id')->get()->toArray());
+    }
+
     public function test_vendor_role_requires_a_vendor(): void
     {
         $user = User::factory()->make();

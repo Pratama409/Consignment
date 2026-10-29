@@ -23,6 +23,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::table('users')->where('role', 'vendor')->exists()) {
+            throw new RuntimeException('Cannot roll back operational user roles while Vendor accounts exist. Resolve these accounts before retrying rollback.');
+        }
+
         DB::table('users')->where('role', 'warehouse')->update(['role' => 'user']);
 
         Schema::table('users', function (Blueprint $table): void {
