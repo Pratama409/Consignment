@@ -61,6 +61,7 @@ const modules = computed(() => [
     ...(page.props.auth.abilities.view_reference_masters
         ? [
               { key: "opening-balances", label: "Saldo Awal", icon: "upload", url: page.props.routes.openingBalancesIndex },
+              { key: "stock-corrections", label: "Koreksi Stok", icon: "shield", url: page.props.routes.stockCorrectionsIndex },
               { key: "shifts", label: "Pengaturan Shift", icon: "layers", url: page.props.routes.shiftsIndex },
           ]
         : []),

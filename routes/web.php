@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Inventory\StockCorrectionController;
 use App\Http\Controllers\MasterData\ImportController;
 use App\Http\Controllers\MasterData\ItemController;
 use App\Http\Controllers\MasterData\ItemExportController;
@@ -24,6 +25,12 @@ Route::middleware(['auth', EnsureActiveUser::class])->group(function () {
     Route::post('/inventory/opening-balance', [OpeningBalanceController::class, 'store'])->name('opening-balances.store');
     Route::get('/inventory/opening-balance/{openingBalance}', [OpeningBalanceController::class, 'show'])->whereUuid('openingBalance')->name('opening-balances.show');
     Route::post('/inventory/opening-balance/{openingBalance}/activate', [OpeningBalanceController::class, 'activate'])->whereUuid('openingBalance')->name('opening-balances.activate');
+    Route::get('/inventory/corrections', [StockCorrectionController::class, 'index'])->name('stock-corrections.index');
+    Route::get('/inventory/corrections/create', [StockCorrectionController::class, 'create'])->name('stock-corrections.create');
+    Route::post('/inventory/corrections', [StockCorrectionController::class, 'store'])->name('stock-corrections.store');
+    Route::post('/inventory/corrections/{stockAdjustment}/review', [StockCorrectionController::class, 'review'])->whereUuid('stockAdjustment')->name('stock-corrections.review');
+    Route::post('/inventory/corrections/{stockAdjustment}/post', [StockCorrectionController::class, 'post'])->whereUuid('stockAdjustment')->name('stock-corrections.post');
+    Route::post('/inventory/transactions/{stockTransaction}/reverse', [StockCorrectionController::class, 'reverse'])->whereUuid('stockTransaction')->name('stock-corrections.reverse');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');

@@ -14,7 +14,7 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
         $section = explode('.', $request->route()?->getName() ?? '')[0];
-        $labels = ['opening-balances' => 'Saldo Awal', 'shifts' => 'Pengaturan Shift', 'users' => 'Manajemen Pengguna', 'items' => 'Barang', 'vendors' => 'Vendor', 'units' => 'Satuan', 'locations' => 'Lokasi', 'categories' => 'Kategori', 'imports' => 'Import Master PN'];
+        $labels = ['stock-corrections' => 'Koreksi Stok', 'opening-balances' => 'Saldo Awal', 'shifts' => 'Pengaturan Shift', 'users' => 'Manajemen Pengguna', 'items' => 'Barang', 'vendors' => 'Vendor', 'units' => 'Satuan', 'locations' => 'Lokasi', 'categories' => 'Kategori', 'imports' => 'Import Master PN'];
 
         return [
             ...parent::share($request),
@@ -47,6 +47,7 @@ class HandleInertiaRequests extends Middleware
                 'usersIndex' => route('users.index'),
                 'shiftsIndex' => route('shifts.index'),
                 'openingBalancesIndex' => route('opening-balances.index'),
+                'stockCorrectionsIndex' => route('stock-corrections.index'),
                 'login' => route('login'),
                 'logout' => route('logout'),
             ],
