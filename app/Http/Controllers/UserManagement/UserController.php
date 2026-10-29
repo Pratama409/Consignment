@@ -60,7 +60,7 @@ class UserController extends Controller
 
     public function status(SaveUserRequest $request, User $user, SaveUser $save)
     {
-        $save->handle([...$this->serialize($user), ...$request->validated()], $user);
+        $save->changeStatus($request->boolean('is_active'), $user);
 
         return to_route('users.index', Arr::only($request->query(), ['q', 'role', 'status', 'vendor', 'sort', 'direction', 'per_page', 'page']))->with('success', 'Status pengguna berhasil diubah.');
     }

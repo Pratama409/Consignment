@@ -16,12 +16,25 @@ class SaveUser
 {
     public function handle(array $validated, ?User $user = null): User
     {
+        return $this->persist($validated, $user);
+    }
+
+    public function changeStatus(bool $isActive, User $user): User
+    {
+        return $this->persist(['is_active' => $isActive], $user, statusOnly: true);
+    }
+
+    private function persist(array $validated, ?User $user, bool $statusOnly = false): User
+    {
         Gate::authorize($user ? 'update' : 'create', $user ?? User::class);
 
         try {
-            return DB::transaction(function () use ($validated, $user) {
+            return DB::transaction(function () use ($validated, $user, $statusOnly) {
                 $user = $user ? User::query()->lockForUpdate()->findOrFail($user->id) : new User;
                 $exists = $user->exists;
+                if ($statusOnly) {
+                    $validated = [...$this->snapshot($user), ...$validated];
+                }
                 $data = Validator::make($validated, SaveUserRequest::userRules($exists ? $user : null))->validate();
                 $before = $exists ? $this->snapshot($user) : [];
                 $user->name = $data['name'];

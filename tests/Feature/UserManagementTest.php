@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Vendor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -84,6 +85,39 @@ class UserManagementTest extends TestCase
     {
         $this->expectException(ValidationException::class);
         app(SaveUser::class)->handle($this->payload(['role' => 'vendor']));
+    }
+
+    public function test_status_changes_preserve_role_vendor_and_identity_from_the_locked_record(): void
+    {
+        $first = Vendor::create(['vendor_code' => 'BEFORE', 'vendor_name' => 'Before supplier']);
+        $second = Vendor::create(['vendor_code' => 'AFTER', 'vendor_name' => 'After supplier']);
+
+        foreach ([['role' => 'vendor', 'vendor_id' => $second->id], ['role' => 'warehouse', 'vendor_id' => null]] as $index => $currentAccess) {
+            $active = $index === 0;
+            $user = User::factory()->vendor($first)->create(['is_active' => ! $active]);
+            $staleUser = $user->fresh();
+            // Simulate another Admin's committed edit after route binding, before the status action locks.
+            $current = [...$currentAccess, 'name' => 'Reassigned operator', 'email' => 'reassigned-'.$index.'@example.test', 'employee_no' => 'NEW-'.$index, 'position' => 'Updated position'];
+            $user->forceFill($current)->save();
+            $password = $user->password;
+            Route::bind('user', fn () => $staleUser);
+
+            $this->patch('/users/'.$user->id.'/status', ['is_active' => $active, 'role' => 'admin', 'vendor_id' => $first->id])
+                ->assertRedirect('/users')->assertSessionHasNoErrors();
+
+            $fresh = $user->fresh();
+            $this->assertSame($active, $fresh->is_active);
+            $this->assertSame($currentAccess['role'], $fresh->role->value);
+            $this->assertSame($currentAccess['vendor_id'], $fresh->vendor_id);
+            $this->assertSame($password, $fresh->password);
+            foreach (['name', 'email', 'employee_no', 'position'] as $field) {
+                $this->assertSame($current[$field], $fresh->{$field});
+            }
+            $audit = AuditLog::where('entity_id', $user->id)->sole();
+            $this->assertSame($active ? 'user.reactivated' : 'user.deactivated', $audit->action);
+            $this->assertEquals([...$current, 'is_active' => ! $active], $audit->before);
+            $this->assertEquals([...$current, 'is_active' => $active], $audit->after);
+        }
     }
 
     public function test_deactivation_ends_existing_authenticated_access_on_next_request(): void
