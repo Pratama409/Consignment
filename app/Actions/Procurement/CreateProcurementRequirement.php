@@ -16,6 +16,6 @@ class CreateProcurementRequirement
             return null;
         }
 
-return ProcurementRequirement::firstOrCreate(['material_issue_line_id' => $line->id], ['row_key' => (string) Str::uuid(), 'vendor_item_id' => $line->vendor_item_id, 'item_id' => $line->requestLine->item_id, 'location_id' => $line->location_id, 'required_quantity' => $line->issued_quantity, 'status' => 'RESERVATION_PENDING']);
+        return ProcurementRequirement::firstOrCreate(['material_issue_line_id' => $line->id], ['row_key' => (string) Str::uuid(), 'vendor_item_id' => $line->vendor_item_id, 'item_id' => $line->requestLine->item_id, 'location_id' => $line->location_id, 'required_quantity' => $line->issued_quantity, 'status' => 'RESERVATION_PENDING']);
     }
 }
