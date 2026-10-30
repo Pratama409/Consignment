@@ -16,6 +16,22 @@ const initials = computed(() =>
 );
 const modules = computed(() => [
     {
+        key: "refills",
+        label: "Vendor Refill",
+        icon: "truck",
+        url: page.props.routes.refillsIndex,
+    },
+    ...(!user.value || user.value.role === "vendor"
+        ? []
+        : [
+              {
+                  key: "incoming-refills",
+                  label: "Incoming Refill",
+                  icon: "arrowDown",
+                  url: page.props.routes.incomingRefillsIndex,
+              },
+          ]),
+    {
         key: "items",
         label: "Barang",
         icon: "box",

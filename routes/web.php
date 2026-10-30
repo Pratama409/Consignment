@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\IncomingRefillController;
 use App\Http\Controllers\Inventory\StockCorrectionController;
 use App\Http\Controllers\MasterData\ImportController;
 use App\Http\Controllers\MasterData\ItemController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\MasterData\UnitController;
 use App\Http\Controllers\OpeningBalanceController;
 use App\Http\Controllers\Settings\ShiftDefinitionController;
 use App\Http\Controllers\UserManagement\UserController;
+use App\Http\Controllers\VendorRefillController;
 use App\Http\Middleware\EnsureActiveUser;
 use Illuminate\Support\Facades\Route;
 
@@ -19,6 +21,16 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware(['auth', EnsureActiveUser::class])->group(function () {
+    Route::get('/vendor-refills', [VendorRefillController::class, 'index'])->name('refills.index');
+    Route::get('/vendor-refills/create', [VendorRefillController::class, 'create'])->name('refills.create');
+    Route::post('/vendor-refills', [VendorRefillController::class, 'store'])->name('refills.store');
+    Route::get('/vendor-refills/{refill}', [VendorRefillController::class, 'show'])->whereUuid('refill')->name('refills.show');
+    Route::post('/vendor-refills/{refill}/revisions', [VendorRefillController::class, 'revision'])->whereUuid('refill')->name('refills.revisions.store');
+    Route::post('/vendor-refill-revisions/{revision}/review', [VendorRefillController::class, 'review'])->whereUuid('revision')->name('refills.revisions.review');
+    Route::post('/vendor-refills/{refill}/shipments', [VendorRefillController::class, 'shipment'])->whereUuid('refill')->name('refills.shipments.store');
+    Route::post('/vendor-refills/{refill}/close', [VendorRefillController::class, 'close'])->whereUuid('refill')->name('refills.close');
+    Route::get('/incoming-refills', [IncomingRefillController::class, 'index'])->name('incoming-refills.index');
+    Route::post('/incoming-refills/{shipment}/receipts', [IncomingRefillController::class, 'store'])->whereUuid('shipment')->name('incoming-refills.receipts.store');
     Route::get('/settings/shifts', [ShiftDefinitionController::class, 'index'])->name('shifts.index');
     Route::post('/settings/shifts', [ShiftDefinitionController::class, 'store'])->name('shifts.store');
     Route::get('/inventory/opening-balance', [OpeningBalanceController::class, 'index'])->name('opening-balances.index');
