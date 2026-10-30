@@ -15,8 +15,8 @@ class StoreProcurementDocument
         if (! in_array(strtolower($file->extension()), ['pdf', 'xls', 'xlsx', 'png', 'jpg', 'jpeg']) || $file->getSize() > 10 * 1024 * 1024) {
             throw ValidationException::withMessages(['file' => 'File harus PDF, Excel, atau gambar maksimal 10 MB.']);
         }$version = (int) $r->documents()->where('type', $type)->max('version') + 1;
-        $path = $file->store('procurement/'.date('Y/m'), 'private');
+        $path = $file->store('procurement/'.date('Y/m'), 'local');
 
-        return $r->documents()->create(['type' => $type, 'original_name' => $file->getClientOriginalName(), 'disk' => 'private', 'path' => $path, 'mime_type' => $file->getMimeType(), 'size' => $file->getSize(), 'checksum' => hash_file('sha256', $file->getRealPath()), 'version' => $version, 'is_vendor_visible' => $visible, 'uploaded_by' => $actor->id]);
+        return $r->documents()->create(['type' => $type, 'original_name' => $file->getClientOriginalName(), 'disk' => 'local', 'path' => $path, 'mime_type' => $file->getMimeType(), 'size' => $file->getSize(), 'checksum' => hash_file('sha256', $file->getRealPath()), 'version' => $version, 'is_vendor_visible' => $visible, 'uploaded_by' => $actor->id]);
     }
 }
