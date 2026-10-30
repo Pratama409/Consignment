@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Refills\CloseVendorRefill;
 use App\Actions\Refills\CreateRefillShipment;
 use App\Actions\Refills\CreateVendorRefill;
 use App\Actions\Refills\PostRefillReceipt;
@@ -62,7 +63,7 @@ class VendorRefillReceiptTest extends TestCase
         $this->assertSame('4.0000', StockLot::sole()->remaining_quantity);
         $this->assertSame('PARTIAL', $refill->fresh()->status);
 
-        app(PostRefillReceipt::class)->handle($shipment, $this->warehouse, 'DO-001-B', now()->toImmutable(), [['refill_line_id' => $line->id, 'location_id' => $this->relation->location_id, 'quantity' => 6]], 'receipt-key-2');
+        app(PostRefillReceipt::class)->handle($shipment, $this->warehouse, 'DO-001', now()->toImmutable(), [['refill_line_id' => $line->id, 'location_id' => $this->relation->location_id, 'quantity' => 6]], 'receipt-key-2');
         $this->assertSame('10.0000', StockBalance::sole()->quantity);
         $this->assertSame('COMPLETED', $refill->fresh()->status);
         $this->assertSame('RECEIVED', $shipment->fresh()->status);
@@ -75,5 +76,43 @@ class VendorRefillReceiptTest extends TestCase
         $shipment = app(CreateRefillShipment::class)->handle($refill, $this->vendorUser, 'DO-OVER', now()->toImmutable(), [['refill_line_id' => $line->id, 'quantity' => 5]]);
         $this->expectException(ValidationException::class);
         app(PostRefillReceipt::class)->handle($shipment, $this->warehouse, 'DO-OVER', now()->toImmutable(), [['refill_line_id' => $line->id, 'location_id' => $this->relation->location_id, 'quantity' => 6]], 'over-key');
+    }
+
+    public function test_split_location_rows_are_aggregated_before_over_receipt_validation(): void
+    {
+        $refill = app(CreateVendorRefill::class)->handle($this->vendor, $this->admin, [['item_id' => $this->relation->item_id, 'quantity' => 10]]);
+        $line = $refill->lines->sole();
+        $shipment = app(CreateRefillShipment::class)->handle($refill, $this->vendorUser, 'DO-SPLIT', now()->toImmutable(), [['refill_line_id' => $line->id, 'quantity' => 10]]);
+        $other = Location::create(['location_code' => 'OTHER', 'location_name' => 'Other']);
+        StockBalance::create(['item_id' => $line->item_id, 'vendor_item_id' => $this->relation->id, 'location_id' => $other->id, 'bucket_key' => "CONSIGNMENT:{$this->relation->id}:{$other->id}", 'quantity' => 1]);
+        $this->expectException(ValidationException::class);
+        app(PostRefillReceipt::class)->handle($shipment, $this->warehouse, 'DO-SPLIT', now()->toImmutable(), [
+            ['refill_line_id' => $line->id, 'location_id' => $this->relation->location_id, 'quantity' => 7],
+            ['refill_line_id' => $line->id, 'location_id' => $other->id, 'quantity' => 7],
+        ], 'split-key');
+    }
+
+    public function test_closed_refill_rejects_receipts_without_posting_stock(): void
+    {
+        $refill = app(CreateVendorRefill::class)->handle($this->vendor, $this->admin, [['item_id' => $this->relation->item_id, 'quantity' => 5]]);
+        $line = $refill->lines->sole();
+        $shipment = app(CreateRefillShipment::class)->handle($refill, $this->vendorUser, 'DO-CLOSED', now()->toImmutable(), [['refill_line_id' => $line->id, 'quantity' => 5]]);
+        app(CloseVendorRefill::class)->handle($refill, $this->admin, 'Dihentikan');
+        try {
+            app(PostRefillReceipt::class)->handle($shipment, $this->warehouse, 'DO-CLOSED', now()->toImmutable(), [['refill_line_id' => $line->id, 'location_id' => $this->relation->location_id, 'quantity' => 1]], 'closed-key');
+            $this->fail('Closed refill must reject receipt.');
+        } catch (ValidationException) {
+            $this->addToAssertionCount(1);
+        }
+        $this->assertDatabaseCount('stock_transactions', 0);
+    }
+
+    public function test_cumulative_shipments_cannot_exceed_request(): void
+    {
+        $refill = app(CreateVendorRefill::class)->handle($this->vendor, $this->admin, [['item_id' => $this->relation->item_id, 'quantity' => 10]]);
+        $line = $refill->lines->sole();
+        app(CreateRefillShipment::class)->handle($refill, $this->vendorUser, 'DO-A', now()->toImmutable(), [['refill_line_id' => $line->id, 'quantity' => 7]]);
+        $this->expectException(ValidationException::class);
+        app(CreateRefillShipment::class)->handle($refill, $this->vendorUser, 'DO-B', now()->toImmutable(), [['refill_line_id' => $line->id, 'quantity' => 4]]);
     }
 }

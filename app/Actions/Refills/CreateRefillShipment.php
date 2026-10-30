@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\VendorRefill;
 use App\Models\VendorRefillLine;
 use App\Models\VendorRefillShipment;
+use App\Models\VendorRefillShipmentLine;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -27,7 +28,8 @@ class CreateRefillShipment
             $seen = [];
             foreach ($lines as $input) {
                 $line = VendorRefillLine::where('vendor_refill_id', $locked->id)->whereKey($input['refill_line_id'] ?? '')->lockForUpdate()->first();
-                if (! $line || isset($seen[$line->id]) || (float) ($input['quantity'] ?? 0) <= 0 || (float) $input['quantity'] > (float) $line->requested_quantity) {
+                $alreadyShipped = $line ? VendorRefillShipmentLine::where('vendor_refill_line_id', $line->id)->sum('shipped_quantity') : 0;
+                if (! $line || isset($seen[$line->id]) || (float) ($input['quantity'] ?? 0) <= 0 || (float) $alreadyShipped + (float) $input['quantity'] > (float) $line->requested_quantity) {
                     throw ValidationException::withMessages(['shipment' => 'Baris pengiriman tidak valid atau melebihi permintaan.']);
                 }
                 $seen[$line->id] = true;

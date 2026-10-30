@@ -4,6 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 return new class extends Migration
 {
@@ -78,7 +79,7 @@ return new class extends Migration
             $table->string('idempotency_key', 100)->unique();
             $table->text('notes')->nullable();
             $table->timestamps();
-            $table->unique(['vendor_refill_id', 'vendor_do_number']);
+            $table->index(['vendor_refill_id', 'vendor_do_number']);
         });
         Schema::create('vendor_refill_receipt_lines', function (Blueprint $table): void {
             $table->uuid('id')->primary();
@@ -98,6 +99,9 @@ return new class extends Migration
         ] as $table => $column) {
             $this->positive($table, $column);
         }
+        foreach (['vendor_refill', 'refill_receipt'] as $name) {
+            DB::table('number_sequences')->insert(['id' => (string) Str::uuid7(), 'name' => $name, 'last_value' => 0, 'created_at' => now(), 'updated_at' => now()]);
+        }
     }
 
     private function positive(string $table, string $column): void
@@ -113,6 +117,7 @@ return new class extends Migration
 
     public function down(): void
     {
+        DB::table('number_sequences')->whereIn('name', ['vendor_refill', 'refill_receipt'])->delete();
         foreach (['vendor_refill_receipt_lines', 'vendor_refill_receipts', 'vendor_refill_shipment_lines', 'vendor_refill_shipments', 'vendor_refill_revisions', 'vendor_refill_lines', 'vendor_refills'] as $table) {
             Schema::dropIfExists($table);
         }

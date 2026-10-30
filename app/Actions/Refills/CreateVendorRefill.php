@@ -6,11 +6,14 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\VendorItem;
 use App\Models\VendorRefill;
+use App\Support\OperationalNumberGenerator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CreateVendorRefill
 {
+    public function __construct(private OperationalNumberGenerator $numbers) {}
+
     /** @param list<array{item_id:string,quantity:string|int|float}> $lines */
     public function handle(Vendor $vendor, User $admin, array $lines, ?string $notes = null): VendorRefill
     {
@@ -30,7 +33,7 @@ class CreateVendorRefill
                 $seen[$itemId] = true;
             }
             $date = now()->format('Ymd');
-            $sequence = VendorRefill::where('vendor_id', $lockedVendor->id)->whereDate('created_at', now()->toDateString())->count() + 1;
+            $sequence = $this->numbers->next('vendor_refill');
             $refill = VendorRefill::create([
                 'refill_no' => sprintf('VRV-%s-%s-%04d', $lockedVendor->vendor_code, $date, $sequence),
                 'vendor_id' => $lockedVendor->id, 'status' => 'REQUESTED', 'requested_by' => $admin->id,

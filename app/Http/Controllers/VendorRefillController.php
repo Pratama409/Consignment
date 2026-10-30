@@ -24,7 +24,7 @@ class VendorRefillController extends Controller
             $q->where('vendor_id', $request->user()->vendor_id);
         }
 
-return Inertia::render('Refills/Index', ['refills' => $q->paginate(20)->through(fn ($r) => ['id' => $r->id, 'number' => $r->refill_no, 'vendor' => $r->vendor->vendor_name, 'status' => $r->status, 'requested_at' => $r->requested_at?->timezone('Asia/Makassar')->format('d/m/Y H:i'), 'show_url' => route('refills.show', $r)]), 'can_create' => $request->user()->isAdmin(), 'create_url' => route('refills.create')]);
+        return Inertia::render('Refills/Index', ['refills' => $q->paginate(20)->through(fn ($r) => ['id' => $r->id, 'number' => $r->refill_no, 'vendor' => $r->vendor->vendor_name, 'status' => $r->status, 'requested_at' => $r->requested_at?->timezone('Asia/Makassar')->format('d/m/Y H:i'), 'show_url' => route('refills.show', $r)]), 'can_create' => $request->user()->isAdmin(), 'create_url' => route('refills.create')]);
     }
 
     public function create(Request $request, RefillSuggestion $s)
@@ -47,9 +47,9 @@ return Inertia::render('Refills/Index', ['refills' => $q->paginate(20)->through(
     public function show(Request $request, VendorRefill $refill)
     {
         abort_if($request->user()->isVendor() && $request->user()->vendor_id !== $refill->vendor_id, 403);
-        $refill->load(['vendor', 'lines.item', 'lines.revisions', 'shipments', 'receipts']);
+        $refill->load(['vendor', 'lines.item', 'lines.revisions', 'lines.shipmentLines', 'lines.receiptLines.receipt', 'shipments', 'receipts.lines']);
 
-        return Inertia::render('Refills/Show', ['role' => $request->user()->role->value, 'refill' => ['number' => $refill->refill_no, 'vendor' => $refill->vendor->vendor_name, 'status' => $refill->status, 'revision_url' => route('refills.revisions.store', $refill), 'shipment_url' => route('refills.shipments.store', $refill), 'close_url' => route('refills.close', $refill), 'lines' => $refill->lines->map(fn ($l) => ['id' => $l->id, 'item' => $l->item->item_code.' · '.$l->item->item_name, 'quantity' => $l->requested_quantity, 'revisions' => $l->revisions->map(fn ($r) => ['id' => $r->id, 'quantity' => $r->proposed_quantity, 'reason' => $r->reason, 'status' => $r->status, 'review_url' => route('refills.revisions.review', $r)])]), 'shipments' => $refill->shipments, 'receipts' => $refill->receipts]]);
+        return Inertia::render('Refills/Show', ['role' => $request->user()->role->value, 'refill' => ['number' => $refill->refill_no, 'vendor' => $refill->vendor->vendor_name, 'status' => $refill->status, 'revision_url' => route('refills.revisions.store', $refill), 'shipment_url' => route('refills.shipments.store', $refill), 'close_url' => route('refills.close', $refill), 'lines' => $refill->lines->map(fn ($line) => $this->linePayload($line)), 'shipments' => $refill->shipments, 'receipts' => $refill->receipts]]);
     }
 
     public function revision(Request $request, VendorRefill $refill, ProposeRefillRevision $a)
@@ -83,8 +83,16 @@ return Inertia::render('Refills/Index', ['refills' => $q->paginate(20)->through(
     {
         abort_unless($request->user()->isAdmin(), 403);
         $d = $request->validate(['reason' => ['required', 'string', 'max:2000']]);
-        $a->handle($refill,$request->user(),$d['reason']);
+        $a->handle($refill, $request->user(), $d['reason']);
 
-        return back()->with('success','Sisa refill ditutup.');
+        return back()->with('success', 'Sisa refill ditutup.');
+    }
+
+    private function linePayload($line): array
+    {
+        $shipped = $line->shipmentLines->sum('shipped_quantity');
+        $received = $line->receiptLines->filter(fn ($row) => $row->receipt->status === 'POSTED')->sum('received_quantity');
+
+        return ['id' => $line->id, 'item' => $line->item->item_code.' · '.$line->item->item_name, 'quantity' => $line->requested_quantity, 'shipped' => number_format((float) $shipped, 4, '.', ''), 'received' => number_format((float) $received, 4, '.', ''), 'outstanding' => number_format(max(0, (float) $line->requested_quantity - (float) $received), 4, '.', ''), 'revisions' => $line->revisions->map(fn ($revision) => ['id' => $revision->id, 'quantity' => $revision->proposed_quantity, 'reason' => $revision->reason, 'status' => $revision->status, 'review_url' => route('refills.revisions.review', $revision)])];
     }
 }

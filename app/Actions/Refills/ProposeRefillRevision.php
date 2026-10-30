@@ -18,15 +18,17 @@ class ProposeRefillRevision
         }
 
         return DB::transaction(function () use ($line, $vendorUser, $quantity, $reason): VendorRefillRevision {
-            $locked = VendorRefillLine::query()->lockForUpdate()->with('refill')->findOrFail($line->id);
-            if ($locked->refill->vendor_id !== $vendorUser->vendor_id || in_array($locked->refill->status, ['COMPLETED', 'CLOSED_PARTIAL', 'CANCELLED'], true)) {
+            $identity = VendorRefillLine::findOrFail($line->id);
+            $refill = VendorRefill::query()->lockForUpdate()->findOrFail($identity->vendor_refill_id);
+            $locked = VendorRefillLine::query()->lockForUpdate()->findOrFail($line->id);
+            if ($refill->vendor_id !== $vendorUser->vendor_id || in_array($refill->status, ['COMPLETED', 'CLOSED_PARTIAL', 'CANCELLED'], true)) {
                 throw ValidationException::withMessages(['revision' => 'Vendor tidak berhak merevisi refill ini.']);
             }
             if ($locked->revisions()->where('status', 'PENDING')->exists()) {
                 throw ValidationException::withMessages(['revision' => 'Masih ada revisi yang menunggu keputusan Admin.']);
             }
             $revision = $locked->revisions()->create(['proposed_quantity' => $quantity, 'reason' => trim($reason), 'status' => 'PENDING', 'proposed_by' => $vendorUser->id]);
-            VendorRefill::whereKey($locked->vendor_refill_id)->update(['status' => 'REVISION_PENDING']);
+            $refill->update(['status' => 'REVISION_PENDING']);
 
             return $revision->load('line');
         });

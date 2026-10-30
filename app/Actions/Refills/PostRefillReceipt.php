@@ -13,13 +13,14 @@ use App\Models\VendorRefill;
 use App\Models\VendorRefillLine;
 use App\Models\VendorRefillReceipt;
 use App\Models\VendorRefillShipment;
+use App\Support\OperationalNumberGenerator;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class PostRefillReceipt
 {
-    public function __construct(private PostStockIn $postStockIn) {}
+    public function __construct(private PostStockIn $postStockIn, private OperationalNumberGenerator $numbers) {}
 
     /** @param list<array{refill_line_id:string,location_id:string,quantity:string|int|float}> $lines */
     public function handle(VendorRefillShipment $shipment, User $warehouse, string $doNumber, CarbonImmutable $receivedAt, array $lines, string $idempotencyKey): VendorRefillReceipt
@@ -37,14 +38,38 @@ class PostRefillReceipt
             }
             $lockedShipment = VendorRefillShipment::query()->lockForUpdate()->findOrFail($shipment->id);
             $refill = VendorRefill::query()->lockForUpdate()->findOrFail($lockedShipment->vendor_refill_id);
+            if (in_array($refill->status, ['COMPLETED', 'CLOSED_PARTIAL', 'CANCELLED'], true)) {
+                throw ValidationException::withMessages(['receipt' => 'Refill sudah selesai atau ditutup.']);
+            }
+            $shipmentLines = $lockedShipment->lines()->lockForUpdate()->get()->keyBy('vendor_refill_line_id');
+            $submitted = [];
+            $buckets = [];
+            foreach ($lines as $input) {
+                $lineId = (string) ($input['refill_line_id'] ?? '');
+                $units = $this->units((string) ($input['quantity'] ?? '0'));
+                $bucket = $lineId.'|'.($input['location_id'] ?? '');
+                if ($units <= 0 || isset($buckets[$bucket])) {
+                    throw ValidationException::withMessages(['receipt' => 'Baris penerimaan harus unik dan quantity lebih dari nol.']);
+                }
+                $buckets[$bucket] = true;
+                $submitted[$lineId] = ($submitted[$lineId] ?? 0) + $units;
+            }
+            foreach ($submitted as $lineId => $units) {
+                $line = VendorRefillLine::where('vendor_refill_id', $refill->id)->whereKey($lineId)->lockForUpdate()->first();
+                $shipmentLine = $shipmentLines->get($lineId);
+                $receivedForRefill = $line?->receiptLines()->whereHas('receipt', fn ($query) => $query->where('status', 'POSTED'))->sum('received_quantity') ?? 0;
+                $receivedForShipment = $line?->receiptLines()->whereHas('receipt', fn ($query) => $query->where('status', 'POSTED')->where('vendor_refill_shipment_id', $lockedShipment->id))->sum('received_quantity') ?? 0;
+                if (! $line || ! $shipmentLine || $this->units((string) $receivedForRefill) + $units > $this->units($line->requested_quantity) || $this->units((string) $receivedForShipment) + $units > $this->units($shipmentLine->shipped_quantity)) {
+                    throw ValidationException::withMessages(['receipt' => 'Quantity penerimaan melebihi outstanding request atau shipment.']);
+                }
+            }
             $postingLines = [];
             $receiptData = [];
             foreach ($lines as $input) {
                 $line = VendorRefillLine::where('vendor_refill_id', $refill->id)->whereKey($input['refill_line_id'] ?? '')->lockForUpdate()->first();
                 $quantity = (string) ($input['quantity'] ?? '0');
-                $received = $line?->receiptLines()->whereHas('receipt', fn ($query) => $query->where('status', 'POSTED'))->sum('received_quantity') ?? 0;
-                if (! $line || (float) $quantity <= 0 || ((float) $received + (float) $quantity) > (float) $line->requested_quantity) {
-                    throw ValidationException::withMessages(['receipt' => 'Quantity penerimaan melebihi outstanding refill.']);
+                if (! $line) {
+                    throw ValidationException::withMessages(['receipt' => 'Baris refill tidak ditemukan.']);
                 }
                 $relation = VendorItem::active()->where('vendor_id', $refill->vendor_id)->where('item_id', $line->item_id)->first();
                 if (! $relation) {
@@ -53,7 +78,7 @@ class PostRefillReceipt
                 $postingLines[] = new StockPostingLineData($line->item_id, $relation->id, (string) $input['location_id'], StockDirection::In, $quantity);
                 $receiptData[] = ['vendor_refill_line_id' => $line->id, 'location_id' => $input['location_id'], 'received_quantity' => $quantity];
             }
-            $sequence = VendorRefillReceipt::whereDate('created_at', now()->toDateString())->count() + 1;
+            $sequence = $this->numbers->next('refill_receipt');
             $receipt = $refill->receipts()->create(['receipt_no' => sprintf('RCV/%s/%04d', now()->format('Ymd'), $sequence), 'vendor_refill_shipment_id' => $lockedShipment->id, 'vendor_do_number' => trim($doNumber), 'received_at' => $receivedAt->utc(), 'received_by' => $warehouse->id, 'status' => 'DRAFT', 'idempotency_key' => $idempotencyKey]);
             foreach ($receiptData as $data) {
                 $receipt->lines()->create($data);
@@ -68,5 +93,13 @@ class PostRefillReceipt
 
             return $receipt->fresh(['lines', 'transaction']);
         });
+    }
+
+    private function units(string $quantity): int
+    {
+        $normalized = number_format((float) $quantity, 4, '.', '');
+        [$whole, $fraction] = explode('.', $normalized);
+
+        return ((int) $whole * 10000) + (int) $fraction;
     }
 }

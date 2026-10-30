@@ -37,4 +37,9 @@ class VendorRefillLine extends Model
     {
         return $this->hasMany(VendorRefillReceiptLine::class);
     }
+
+    public function shipmentLines(): HasMany
+    {
+        return $this->hasMany(VendorRefillShipmentLine::class);
+    }
 }

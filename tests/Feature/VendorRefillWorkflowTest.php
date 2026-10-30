@@ -97,4 +97,13 @@ class VendorRefillWorkflowTest extends TestCase
         $this->assertSame($this->admin->id, $closed->closed_by);
         $this->assertSame('Vendor menghentikan produksi', $closed->close_reason);
     }
+
+    public function test_pending_revision_cannot_reopen_a_closed_refill(): void
+    {
+        $refill = app(CreateVendorRefill::class)->handle($this->vendor, $this->admin, [['item_id' => $this->relation->item_id, 'quantity' => 10]]);
+        $revision = app(ProposeRefillRevision::class)->handle($refill->lines->sole(), $this->vendorUser, '5', 'Terbatas');
+        app(CloseVendorRefill::class)->handle($refill, $this->admin, 'Tidak dilanjutkan');
+        $this->expectException(ValidationException::class);
+        app(ReviewRefillRevision::class)->handle($revision, $this->admin, true, 'Terlambat');
+    }
 }
