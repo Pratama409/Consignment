@@ -8,12 +8,18 @@ use App\Http\Controllers\MasterData\ItemController;
 use App\Http\Controllers\MasterData\ItemExportController;
 use App\Http\Controllers\MasterData\ReferenceController;
 use App\Http\Controllers\MasterData\UnitController;
+use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\OpeningBalanceController;
+use App\Http\Controllers\PublicMaterialRequestController;
 use App\Http\Controllers\Settings\ShiftDefinitionController;
 use App\Http\Controllers\UserManagement\UserController;
 use App\Http\Controllers\VendorRefillController;
 use App\Http\Middleware\EnsureActiveUser;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/material-request', [PublicMaterialRequestController::class, 'create'])->name('public.material-requests.create');
+Route::post('/material-request', [PublicMaterialRequestController::class, 'store'])->name('public.material-requests.store');
+Route::post('/material-request/track', [PublicMaterialRequestController::class, 'track'])->name('public.material-requests.track');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
@@ -21,6 +27,11 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware(['auth', EnsureActiveUser::class])->group(function () {
+    Route::get('/material-requests', [MaterialRequestController::class, 'index'])->name('material-requests.index');
+    Route::get('/material-requests/{materialRequest}', [MaterialRequestController::class, 'show'])->whereUuid('materialRequest')->name('material-requests.show');
+    Route::post('/material-request-lines/{line}/readiness', [MaterialRequestController::class, 'readiness'])->whereUuid('line')->name('material-request-lines.readiness');
+    Route::post('/material-requests/{materialRequest}/approval', [MaterialRequestController::class, 'approve'])->whereUuid('materialRequest')->name('material-requests.approve');
+    Route::post('/material-requests/{materialRequest}/issues', [MaterialRequestController::class, 'issue'])->whereUuid('materialRequest')->name('material-requests.issues.store');
     Route::get('/vendor-refills', [VendorRefillController::class, 'index'])->name('refills.index');
     Route::get('/vendor-refills/create', [VendorRefillController::class, 'create'])->name('refills.create');
     Route::post('/vendor-refills', [VendorRefillController::class, 'store'])->name('refills.store');

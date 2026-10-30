@@ -15,6 +15,9 @@ const initials = computed(() =>
         .toUpperCase(),
 );
 const modules = computed(() => [
+    ...(!user.value || user.value.role === "vendor"
+        ? []
+        : [{ key: "material-requests", label: "Material Request", icon: "box", url: page.props.routes.materialRequestsIndex }]),
     {
         key: "refills",
         label: "Vendor Refill",
