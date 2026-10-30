@@ -40,7 +40,8 @@ return new class extends Migration
 
         Schema::create('vendor_reconciliation_lines', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignUuid('vendor_reconciliation_id')->constrained()->cascadeOnDelete();
+            $table->uuid('vendor_reconciliation_id');
+            $table->foreign('vendor_reconciliation_id', 'vendor_ba_line_header_fk')->references('id')->on('vendor_reconciliations')->cascadeOnDelete();
             $table->foreignUuid('vendor_item_id')->constrained()->restrictOnDelete();
             $table->foreignUuid('item_id')->constrained()->restrictOnDelete();
             $table->foreignUuid('location_id')->constrained()->restrictOnDelete();
@@ -58,8 +59,10 @@ return new class extends Migration
 
         Schema::create('vendor_reconciliation_responses', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignUuid('vendor_reconciliation_id')->constrained()->restrictOnDelete();
-            $table->foreignUuid('vendor_reconciliation_line_id')->nullable()->constrained()->restrictOnDelete();
+            $table->uuid('vendor_reconciliation_id');
+            $table->foreign('vendor_reconciliation_id', 'vendor_ba_response_header_fk')->references('id')->on('vendor_reconciliations')->restrictOnDelete();
+            $table->uuid('vendor_reconciliation_line_id')->nullable();
+            $table->foreign('vendor_reconciliation_line_id', 'vendor_ba_response_line_fk')->references('id')->on('vendor_reconciliation_lines')->restrictOnDelete();
             $table->enum('decision', ['AGREE', 'DISPUTE', 'RESOLVED']);
             $table->text('note')->nullable();
             $table->foreignUuid('actor_id')->constrained('users')->restrictOnDelete();
@@ -69,7 +72,8 @@ return new class extends Migration
 
         Schema::create('vendor_reconciliation_documents', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignUuid('vendor_reconciliation_id')->constrained()->restrictOnDelete();
+            $table->uuid('vendor_reconciliation_id');
+            $table->foreign('vendor_reconciliation_id', 'vendor_ba_document_header_fk')->references('id')->on('vendor_reconciliations')->restrictOnDelete();
             $table->unsignedInteger('version');
             $table->enum('type', ['XLSX', 'PDF', 'ATTACHMENT']);
             $table->string('disk', 50)->default('local');
