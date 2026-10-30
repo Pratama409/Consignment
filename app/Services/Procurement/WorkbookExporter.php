@@ -17,6 +17,6 @@ class WorkbookExporter
             $row++;
         }
 
-return $s;
+        return $s;
     }
 }

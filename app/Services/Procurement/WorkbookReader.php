@@ -22,6 +22,6 @@ class WorkbookReader
             }$rows[] = ['row_key' => (string) $r['A'], 'document_no' => (string) $r['F'], 'quantity' => (string) $r['G'], 'row' => $i];
         }
 
-return $rows;
+        return $rows;
     }
 }
