@@ -6,6 +6,7 @@ use App\Actions\Inventory\PostStockIn;
 use App\Actions\MaterialRequests\ApproveMaterialRequest;
 use App\Actions\MaterialRequests\CreateMaterialIssue;
 use App\Actions\MaterialRequests\CreateMaterialRequest;
+use App\Actions\MaterialRequests\ReviseMaterialRequest;
 use App\Actions\MaterialRequests\SetMaterialRequestLineReadiness;
 use App\Data\StockPostingData;
 use App\Data\StockPostingLineData;
@@ -46,7 +47,7 @@ class MaterialIssueWorkflowTest extends TestCase
     public function test_partial_mixed_issue_only_posts_consignment_stock_and_is_idempotent(): void
     {
         [$request, $warehouse, $admin, $consignment, $stock, $relation, $location] = $this->scenario();
-        app(ApproveMaterialRequest::class)->handle($request, $admin, true);
+        app(ApproveMaterialRequest::class)->handle($request, $admin, true, null, 0);
         foreach ($request->lines as $line) {
             app(SetMaterialRequestLineReadiness::class)->handle($line, $warehouse, 'READY');
         }
@@ -62,6 +63,47 @@ class MaterialIssueWorkflowTest extends TestCase
         $this->assertSame('3.0000', StockBalance::where('vendor_item_id', $relation->id)->sole()->quantity);
         $this->assertCount(2, $issue->lines);
         $this->assertSame('PARTIALLY_ISSUED', $request->fresh()->status);
+    }
+
+    public function test_latest_revision_number_controls_issue_limit_even_when_timestamps_tie(): void
+    {
+        [$request, $warehouse, $admin, $consignment, , $relation, $location] = $this->scenario();
+        $line = $request->lines->firstWhere('item_id', $consignment->id);
+        app(ReviseMaterialRequest::class)->handle($request, 'Naik', [['line_id' => $line->id, 'quantity' => 8]], $admin);
+        app(ReviseMaterialRequest::class)->handle($request, 'Turun', [['line_id' => $line->id, 'quantity' => 2]], $admin);
+        app(ApproveMaterialRequest::class)->handle($request, $admin, true, null, 2);
+        app(SetMaterialRequestLineReadiness::class)->handle($line, $warehouse, 'READY');
+
+        $this->expectException(ValidationException::class);
+        app(CreateMaterialIssue::class)->handle($request, $warehouse, 'Receiver', now()->toImmutable(), [['line_id' => $line->id, 'vendor_item_id' => $relation->id, 'location_id' => $location->id, 'quantity' => 3]], (string) Str::uuid());
+    }
+
+    public function test_remaining_line_can_be_prepared_after_another_line_is_partially_issued(): void
+    {
+        [$request, $warehouse, $admin, $consignment, $stock, $relation, $location] = $this->scenario();
+        app(ApproveMaterialRequest::class)->handle($request, $admin, true, null, 0);
+        $first = $request->lines->firstWhere('item_id', $consignment->id);
+        $second = $request->lines->firstWhere('item_id', $stock->id);
+        app(SetMaterialRequestLineReadiness::class)->handle($first, $warehouse, 'READY');
+        app(CreateMaterialIssue::class)->handle($request, $warehouse, 'Receiver', now()->toImmutable(), [['line_id' => $first->id, 'vendor_item_id' => $relation->id, 'location_id' => $location->id, 'quantity' => 1]], (string) Str::uuid());
+
+        app(SetMaterialRequestLineReadiness::class)->handle($second, $warehouse, 'READY');
+        $this->assertSame('READY', $second->fresh()->status);
+        $this->assertSame('PARTIALLY_ISSUED', $request->fresh()->status);
+    }
+
+    public function test_idempotency_key_cannot_return_issue_from_another_request(): void
+    {
+        [$request, $warehouse, $admin, $consignment, , $relation, $location] = $this->scenario();
+        app(ApproveMaterialRequest::class)->handle($request, $admin, true, null, 0);
+        $line = $request->lines->firstWhere('item_id', $consignment->id);
+        app(SetMaterialRequestLineReadiness::class)->handle($line, $warehouse, 'READY');
+        $key = (string) Str::uuid();
+        app(CreateMaterialIssue::class)->handle($request, $warehouse, 'Receiver', now()->toImmutable(), [['line_id' => $line->id, 'vendor_item_id' => $relation->id, 'location_id' => $location->id, 'quantity' => 1]], $key);
+        $other = app(CreateMaterialRequest::class)->handle(['applicant_name' => 'Other', 'applicant_nrp' => 'NRP-2', 'applicant_phone' => '08234', 'department_id' => $request->department_id, 'needed_at' => now()->addDay(), 'purpose' => 'Other'], [['item_id' => $consignment->id, 'quantity' => 1]]);
+
+        $this->expectException(ValidationException::class);
+        app(CreateMaterialIssue::class)->handle($other, $warehouse, 'Receiver', now()->toImmutable(), [['line_id' => $other->lines->first()->id, 'quantity' => 1]], $key);
     }
 
     private function scenario(): array

@@ -47,6 +47,12 @@ const modules = computed(() => [
         url: page.props.routes.categoriesIndex,
     },
     {
+        key: "departments",
+        label: "Departemen",
+        icon: "layers",
+        url: page.props.routes.departmentsIndex,
+    },
+    {
         key: "vendors",
         label: "Vendor",
         icon: "truck",

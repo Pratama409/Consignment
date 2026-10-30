@@ -32,4 +32,14 @@ class MaterialRequestLine extends Model
     {
         return $this->hasMany(MaterialIssueLine::class);
     }
+
+    public function effectiveQuantity(): int
+    {
+        $revised = $this->revisionLines()
+            ->join('material_request_revisions', 'material_request_revisions.id', '=', 'material_request_revision_lines.material_request_revision_id')
+            ->orderByDesc('material_request_revisions.revision_no')
+            ->value('material_request_revision_lines.revised_quantity');
+
+        return (int) ($revised ?? $this->requested_quantity);
+    }
 }

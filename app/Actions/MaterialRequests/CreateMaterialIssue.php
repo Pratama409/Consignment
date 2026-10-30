@@ -26,15 +26,23 @@ class CreateMaterialIssue
     /** @param list<array{line_id:string,quantity:string|int|float,vendor_item_id?:string|null,location_id?:string|null}> $lines */
     public function handle(MaterialRequest $request, User $warehouse, string $receiver, CarbonImmutable $issuedAt, array $lines, string $idempotencyKey): MaterialIssue
     {
-        if ($existing = MaterialIssue::where('idempotency_key', $idempotencyKey)->first()) {
-            return $existing->load('lines');
-        }
         if (! $warehouse->isWarehouse() || trim($receiver) === '' || trim($idempotencyKey) === '' || $lines === []) {
             throw ValidationException::withMessages(['issue' => 'Data serah terima belum lengkap.']);
+        }
+        if ($existing = MaterialIssue::where('idempotency_key', $idempotencyKey)->first()) {
+            if ($existing->material_request_id !== $request->id) {
+                throw ValidationException::withMessages(['idempotency_key' => 'Kunci transaksi sudah digunakan untuk MR lain.']);
+            }
+
+            return $existing->load('lines');
         }
 
         return DB::transaction(function () use ($request, $warehouse, $receiver, $issuedAt, $lines, $idempotencyKey): MaterialIssue {
             if ($existing = MaterialIssue::where('idempotency_key', $idempotencyKey)->lockForUpdate()->first()) {
+                if ($existing->material_request_id !== $request->id) {
+                    throw ValidationException::withMessages(['idempotency_key' => 'Kunci transaksi sudah digunakan untuk MR lain.']);
+                }
+
                 return $existing->load('lines');
             }
             $locked = MaterialRequest::query()->lockForUpdate()->findOrFail($request->id);
@@ -52,7 +60,7 @@ class CreateMaterialIssue
                     throw ValidationException::withMessages(['issue' => 'Baris harus siap, unik, dan quantity berupa satuan bulat positif.']);
                 }
                 $seen[$line->id] = true;
-                $effective = (int) ($line->revisionLines()->latest('created_at')->value('revised_quantity') ?? $line->requested_quantity);
+                $effective = $line->effectiveQuantity();
                 $issued = (int) $line->issueLines()->whereHas('issue', fn ($query) => $query->where('status', 'POSTED'))->sum('issued_quantity');
                 $quantity = (int) $input['quantity'];
                 if ($issued + $quantity > $effective) {
@@ -86,7 +94,7 @@ class CreateMaterialIssue
             $issue->save();
 
             foreach ($locked->lines()->lockForUpdate()->get() as $requestLine) {
-                $effective = (int) ($requestLine->revisionLines()->latest('created_at')->value('revised_quantity') ?? $requestLine->requested_quantity);
+                $effective = $requestLine->effectiveQuantity();
                 $total = (int) $requestLine->issueLines()->whereHas('issue', fn ($query) => $query->where('status', 'POSTED'))->sum('issued_quantity');
                 if ($total > 0) {
                     $requestLine->update(['status' => $total >= $effective ? 'ISSUED' : 'PARTIALLY_ISSUED']);

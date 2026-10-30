@@ -17,14 +17,16 @@ class SetMaterialRequestLineReadiness
         }
 
         return DB::transaction(function () use ($line, $status): MaterialRequestLine {
+            $identity = MaterialRequestLine::query()->findOrFail($line->id);
+            $request = MaterialRequest::query()->lockForUpdate()->findOrFail($identity->material_request_id);
             $locked = MaterialRequestLine::query()->lockForUpdate()->findOrFail($line->id);
-            $request = MaterialRequest::query()->lockForUpdate()->findOrFail($locked->material_request_id);
-            if (in_array($request->status, ['PARTIALLY_ISSUED', 'COMPLETED', 'CANCELLED'], true) || in_array($locked->status, ['PARTIALLY_ISSUED', 'ISSUED', 'CANCELLED'], true)) {
+            if (in_array($request->status, ['COMPLETED', 'CANCELLED'], true) || in_array($locked->status, ['PARTIALLY_ISSUED', 'ISSUED', 'CANCELLED'], true)) {
                 throw ValidationException::withMessages(['readiness' => 'Baris yang sudah diserahkan atau ditutup tidak dapat diubah.']);
             }
             $locked->update(['status' => $status]);
             $statuses = $request->lines()->pluck('status');
-            $request->update(['status' => $statuses->every(fn ($value) => $value === 'READY') ? 'READY' : ($statuses->contains('READY') ? 'PARTIALLY_READY' : 'PREPARING')]);
+            $hasIssue = $statuses->contains(fn ($value) => in_array($value, ['PARTIALLY_ISSUED', 'ISSUED'], true));
+            $request->update(['status' => $hasIssue ? 'PARTIALLY_ISSUED' : ($statuses->every(fn ($value) => $value === 'READY') ? 'READY' : ($statuses->contains('READY') ? 'PARTIALLY_READY' : 'PREPARING'))]);
 
             return $locked->fresh();
         });

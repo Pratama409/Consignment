@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -41,5 +42,10 @@ class MaterialRequest extends Model
     public function issues(): HasMany
     {
         return $this->hasMany(MaterialIssue::class);
+    }
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->whereNotIn('status', ['COMPLETED', 'CANCELLED']);
     }
 }

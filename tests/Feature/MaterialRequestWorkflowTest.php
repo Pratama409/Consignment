@@ -54,7 +54,7 @@ class MaterialRequestWorkflowTest extends TestCase
         $this->assertSame('SUPERSEDED', $request->approvals()->where('revision_no', 0)->value('status'));
         $current = $request->approvals()->where('revision_no', 1)->firstOrFail();
 
-        app(ApproveMaterialRequest::class)->handle($request, User::factory()->admin()->create(), true, 'Disetujui');
+        app(ApproveMaterialRequest::class)->handle($request, User::factory()->admin()->create(), true, 'Disetujui', 1);
         $this->assertSame('APPROVED', $current->fresh()->status);
     }
 

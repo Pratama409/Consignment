@@ -9,16 +9,16 @@ use Illuminate\Validation\ValidationException;
 
 class ApproveMaterialRequest
 {
-    public function handle(MaterialRequest $request, User $admin, bool $approve, ?string $note = null): MaterialRequest
+    public function handle(MaterialRequest $request, User $admin, bool $approve, ?string $note, int $expectedRevisionNo): MaterialRequest
     {
         if (! $admin->isAdmin()) {
             throw ValidationException::withMessages(['approval' => 'Hanya Admin dapat memutuskan approval MR.']);
         }
 
-        return DB::transaction(function () use ($request, $admin, $approve, $note): MaterialRequest {
+        return DB::transaction(function () use ($request, $admin, $approve, $note, $expectedRevisionNo): MaterialRequest {
             $locked = MaterialRequest::query()->lockForUpdate()->findOrFail($request->id);
             $approval = $locked->approvals()->where('status', 'PENDING')->lockForUpdate()->latest('revision_no')->first();
-            if (! $approval || in_array($locked->status, ['COMPLETED', 'CANCELLED'], true)) {
+            if (! $approval || $approval->revision_no !== $expectedRevisionNo || in_array($locked->status, ['COMPLETED', 'CANCELLED'], true)) {
                 throw ValidationException::withMessages(['approval' => 'Tidak ada approval aktif untuk MR ini.']);
             }
             $approval->update(['status' => $approve ? 'APPROVED' : 'REJECTED', 'decided_by' => $admin->id, 'decided_at' => now(), 'decision_note' => $note]);

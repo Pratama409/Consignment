@@ -38,6 +38,6 @@ class PublicMaterialRequestController extends Controller
 
     private function payload($request): array
     {
-        return ['number' => $request->request_no, 'status' => $request->status, 'applicant' => $request->applicant_name, 'department' => $request->department->department_name, 'needed_at' => $request->needed_at->timezone('Asia/Makassar')->format('d/m/Y H:i'), 'purpose' => $request->purpose, 'lines' => $request->lines->map(fn ($line) => ['item' => $line->item->item_code.' · '.$line->item->item_name, 'quantity' => (int) $line->requested_quantity, 'status' => $line->status])];
+        return ['number' => $request->request_no, 'status' => $request->status, 'applicant' => $request->applicant_name, 'department' => $request->department->department_name, 'needed_at' => $request->needed_at->timezone('Asia/Makassar')->format('d/m/Y H:i'), 'purpose' => $request->purpose, 'lines' => $request->lines->map(fn ($line) => ['item' => $line->item->item_code.' · '.$line->item->item_name, 'quantity' => $line->effectiveQuantity(), 'status' => $line->status])];
     }
 }

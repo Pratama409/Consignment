@@ -14,7 +14,7 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
         $section = explode('.', $request->route()?->getName() ?? '')[0];
-        $labels = ['material-requests' => 'Material Request', 'refills' => 'Vendor Refill', 'incoming-refills' => 'Incoming Refill', 'stock-corrections' => 'Koreksi Stok', 'opening-balances' => 'Saldo Awal', 'shifts' => 'Pengaturan Shift', 'users' => 'Manajemen Pengguna', 'items' => 'Barang', 'vendors' => 'Vendor', 'units' => 'Satuan', 'locations' => 'Lokasi', 'categories' => 'Kategori', 'imports' => 'Import Master PN'];
+        $labels = ['material-requests' => 'Material Request', 'refills' => 'Vendor Refill', 'incoming-refills' => 'Incoming Refill', 'stock-corrections' => 'Koreksi Stok', 'opening-balances' => 'Saldo Awal', 'shifts' => 'Pengaturan Shift', 'users' => 'Manajemen Pengguna', 'items' => 'Barang', 'vendors' => 'Vendor', 'units' => 'Satuan', 'locations' => 'Lokasi', 'categories' => 'Kategori', 'departments' => 'Departemen', 'imports' => 'Import Master PN'];
 
         return [
             ...parent::share($request),
@@ -42,6 +42,7 @@ class HandleInertiaRequests extends Middleware
                 'vendorsIndex' => route('vendors.index'),
                 'locationsIndex' => route('locations.index'),
                 'categoriesIndex' => route('categories.index'),
+                'departmentsIndex' => route('departments.index'),
                 'importsIndex' => route('imports.index'),
                 'unitsIndex' => route('units.index'),
                 'usersIndex' => route('users.index'),

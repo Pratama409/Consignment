@@ -31,6 +31,7 @@ Route::middleware(['auth', EnsureActiveUser::class])->group(function () {
     Route::get('/material-requests/{materialRequest}', [MaterialRequestController::class, 'show'])->whereUuid('materialRequest')->name('material-requests.show');
     Route::post('/material-request-lines/{line}/readiness', [MaterialRequestController::class, 'readiness'])->whereUuid('line')->name('material-request-lines.readiness');
     Route::post('/material-requests/{materialRequest}/approval', [MaterialRequestController::class, 'approve'])->whereUuid('materialRequest')->name('material-requests.approve');
+    Route::post('/material-requests/{materialRequest}/revisions', [MaterialRequestController::class, 'revise'])->whereUuid('materialRequest')->name('material-requests.revisions.store');
     Route::post('/material-requests/{materialRequest}/issues', [MaterialRequestController::class, 'issue'])->whereUuid('materialRequest')->name('material-requests.issues.store');
     Route::get('/vendor-refills', [VendorRefillController::class, 'index'])->name('refills.index');
     Route::get('/vendor-refills/create', [VendorRefillController::class, 'create'])->name('refills.create');
@@ -66,7 +67,7 @@ Route::middleware(['auth', EnsureActiveUser::class])->group(function () {
     Route::post('/master-data/satuan', [UnitController::class, 'store'])->name('units.store');
     Route::put('/master-data/satuan/{unit}', [UnitController::class, 'update'])->name('units.update');
     Route::patch('/master-data/satuan/{unit}/status', [UnitController::class, 'status'])->name('units.status');
-    foreach (['vendors' => 'vendor', 'locations' => 'lokasi', 'categories' => 'kategori'] as $resource => $path) {
+    foreach (['vendors' => 'vendor', 'locations' => 'lokasi', 'categories' => 'kategori', 'departments' => 'departemen'] as $resource => $path) {
         Route::get('/master-data/'.$path, [ReferenceController::class, 'index'])->defaults('resource', $resource)->name($resource.'.index');
         Route::post('/master-data/'.$path, [ReferenceController::class, 'store'])->defaults('resource', $resource)->name($resource.'.store');
         Route::put('/master-data/'.$path.'/{record}', [ReferenceController::class, 'update'])->defaults('resource', $resource)->whereUuid('record')->name($resource.'.update');

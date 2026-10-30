@@ -34,6 +34,14 @@ class MaterialRequestPageTest extends TestCase
         $this->actingAs(User::factory()->vendor($vendor)->create())->get(route('material-requests.index'))->assertForbidden();
     }
 
+    public function test_admin_can_manage_departments_through_reference_master(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $this->actingAs($admin)->get(route('departments.index'))->assertOk();
+        $this->post(route('departments.store'), ['code' => 'MNT', 'name' => 'Maintenance', 'is_active' => true])->assertRedirect();
+        $this->assertDatabaseHas('departments', ['department_code' => 'MNT', 'department_name' => 'Maintenance']);
+    }
+
     private function masters(): array
     {
         $department = Department::create(['department_code' => 'OPS', 'department_name' => 'Operations']);
