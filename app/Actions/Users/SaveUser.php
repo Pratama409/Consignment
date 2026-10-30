@@ -5,6 +5,7 @@ namespace App\Actions\Users;
 use App\Actions\Audit\WriteAuditLog;
 use App\Http\Requests\UserManagement\SaveUserRequest;
 use App\Models\User;
+use App\Models\Vendor;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -36,6 +37,10 @@ class SaveUser
                     $validated = [...$this->snapshot($user), ...$validated];
                 }
                 $data = Validator::make($validated, SaveUserRequest::userRules($exists ? $user : null))->validate();
+                if ($data['role'] === 'vendor' && (! $exists || $user->vendor_id !== ($data['vendor_id'] ?? null))
+                    && ! Vendor::active()->whereKey($data['vendor_id'] ?? null)->exists()) {
+                    throw ValidationException::withMessages(['vendor_id' => 'Pilih Vendor yang masih aktif.']);
+                }
                 $before = $exists ? $this->snapshot($user) : [];
                 $user->name = $data['name'];
                 $user->email = $data['email'];

@@ -23,7 +23,9 @@ class StockCorrectionController extends Controller
     public function index(Request $request)
     {
         $this->viewable($request);
-        $adjustments = StockAdjustment::with(['item', 'location', 'vendorItem.vendor', 'requester', 'reviewer'])->latest()->paginate(20)->through(fn ($record) => [
+        $input = $request->validate(['q' => ['nullable', 'string', 'max:100']]);
+        $search = trim($input['q'] ?? '');
+        $adjustments = StockAdjustment::with(['item', 'location', 'vendorItem.vendor', 'requester', 'reviewer'])->latest()->paginate(20)->withQueryString()->through(fn ($record) => [
             'id' => $record->id, 'status' => $record->status->value, 'item' => $record->item->item_code.' · '.$record->item->item_name,
             'vendor' => $record->vendorItem?->vendor?->vendor_name, 'location' => $record->location->location_code,
             'direction' => $record->direction->value, 'quantity' => $record->quantity, 'reason' => $record->reason,
@@ -35,11 +37,21 @@ class StockCorrectionController extends Controller
             'adjustments' => $adjustments,
             'can_manage' => $request->user()->isAdmin(),
             'create_url' => route('stock-corrections.create'),
-            'recent_transactions' => StockTransaction::where('status', 'POSTED')->whereNull('reversal_of_id')->with('reversal')->latest('posted_at')->take(15)->get()->map(fn ($transaction) => [
-                'id' => $transaction->id, 'number' => $transaction->transaction_no, 'type' => $transaction->type->value,
-                'posted_at' => $transaction->posted_at?->timezone('Asia/Makassar')->format('d/m/Y H:i'),
-                'reversed' => $transaction->reversal !== null, 'reverse_url' => route('stock-corrections.reverse', $transaction),
-            ]),
+            'transaction_search' => $search,
+            'recent_transactions' => StockTransaction::where('status', 'POSTED')->whereNull('reversal_of_id')
+                ->when($search !== '', fn ($query) => $query->where('transaction_no', 'like', '%'.$search.'%'))
+                ->with(['reversal', 'ledgerEntries.item', 'ledgerEntries.location'])->latest('posted_at')
+                ->paginate(15, ['*'], 'transactions_page')->withQueryString()->through(fn ($transaction) => [
+                    'id' => $transaction->id, 'number' => $transaction->transaction_no, 'type' => $transaction->type->value,
+                    'posted_at' => $transaction->posted_at?->timezone('Asia/Makassar')->format('d/m/Y H:i'),
+                    'reason' => $transaction->reason,
+                    'impact' => $transaction->ledgerEntries->map(fn ($entry) => [
+                        'item' => $entry->item->item_code.' · '.$entry->item->item_name,
+                        'location' => $entry->location->location_code,
+                        'quantity' => $entry->quantity,
+                    ]),
+                    'reversed' => $transaction->reversal !== null, 'reverse_url' => route('stock-corrections.reverse', $transaction),
+                ]),
         ]);
     }
 

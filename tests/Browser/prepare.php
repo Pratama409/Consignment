@@ -1,6 +1,10 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Models\Item;
+use App\Models\Location;
+use App\Models\StockItemLocation;
+use App\Models\Unit;
 use App\Models\User;
 use Database\Seeders\MasterDataSeeder;
 use Illuminate\Contracts\Console\Kernel;
@@ -32,5 +36,8 @@ foreach (['admin' => UserRole::Admin, 'viewer' => UserRole::Warehouse] as $name 
     $user = new User(['name' => $name === 'admin' ? 'Admin Pengujian' : 'Pengguna Pengujian', 'email' => $name.'@browser.test', 'password' => 'Browser-testing-password-123']);
     $user->forceFill(['role' => $role])->save();
 }
+
+$item = Item::create(['item_code' => 'BROWSER-STOCK', 'part_number' => 'PN-BROWSER-STOCK', 'item_name' => 'Browser stock item', 'ownership_type' => 'STOCK', 'tracking_type' => 'QUANTITY', 'unit_id' => Unit::firstOrFail()->id, 'minimum_stock' => '0.0000']);
+StockItemLocation::create(['item_id' => $item->id, 'location_id' => Location::where('location_code', 'UNASSIGNED')->firstOrFail()->id]);
 
 echo 'Browser fixtures prepared on a temporary SQLite database.', PHP_EOL;

@@ -139,6 +139,22 @@ class StockPostingTest extends TestCase
         $this->assertSame(['2.0000', '2.0000'], StockBalance::all()->pluck('quantity')->all());
     }
 
+    public function test_existing_consignment_bucket_remains_usable_after_default_location_changes(): void
+    {
+        $item = $this->makeItem('CONSIGNMENT');
+        $vendor = Vendor::create(['vendor_code' => 'MOVE', 'vendor_name' => 'Move']);
+        $pair = VendorItem::create(['item_id' => $item->id, 'vendor_id' => $vendor->id, 'location_id' => $this->location->id]);
+        app(PostStockIn::class)->handle($this->data([$this->line('2.0000', vendorItem: $pair)]));
+        $newLocation = Location::create(['location_code' => 'NEW-LOC', 'location_name' => 'New location']);
+        $pair->update(['location_id' => $newLocation->id]);
+
+        app(PostStockOut::class)->handle($this->data([
+            new StockPostingLineData($item->id, $pair->id, $this->location->id, StockDirection::Out, '1.0000'),
+        ], type: StockTransactionType::MaterialIssue));
+
+        $this->assertSame('1.0000', StockBalance::where('bucket_key', "CONSIGNMENT:{$pair->id}:{$this->location->id}")->sole()->quantity);
+    }
+
     public function test_invalid_ownership_or_inactive_placement_rolls_back_every_line(): void
     {
         $unplaced = $this->makeItem();

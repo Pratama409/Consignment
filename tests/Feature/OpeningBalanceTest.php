@@ -7,6 +7,7 @@ use App\Actions\OpeningBalance\SaveOpeningBalanceBatch;
 use App\Models\InventoryPeriod;
 use App\Models\Item;
 use App\Models\Location;
+use App\Models\OpeningBalanceBatch;
 use App\Models\StockBalance;
 use App\Models\StockItemLocation;
 use App\Models\Unit;
@@ -14,6 +15,7 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Database\Seeders\MasterDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -62,6 +64,7 @@ class OpeningBalanceTest extends TestCase
         $this->assertSame('12.3456', StockBalance::sole()->quantity);
         $this->assertDatabaseCount('stock_transactions', 1);
         $this->assertDatabaseCount('stock_ledger_entries', 1);
+        $this->assertSame($activated->id, DB::table('inventory_period_controls')->where('control_key', 'GLOBAL')->value('active_period_id'));
 
         $this->expectException(ValidationException::class);
         app(ActivateOpeningBalance::class)->handle($batch->fresh(), $this->admin, 'opening:'.$batch->id);
@@ -103,6 +106,25 @@ class OpeningBalanceTest extends TestCase
         $this->actingAs($warehouse)->get(route('opening-balances.index'))->assertOk();
         $this->actingAs($warehouse)->post(route('opening-balances.store'), [])->assertForbidden();
         $this->actingAs($warehouse)->post(route('opening-balances.activate', $batch), ['idempotency_key' => 'x'])->assertForbidden();
+    }
+
+    public function test_admin_can_replace_preview_and_submit_manual_rows_with_wita_cutoff_time(): void
+    {
+        $period = InventoryPeriod::create(['cutoff_at' => '2026-10-28 02:30:00']);
+        $first = app(SaveOpeningBalanceBatch::class)->handle([$this->row('1.0000')], $period, $this->admin, 'first.xlsx');
+        $replacement = app(SaveOpeningBalanceBatch::class)->handle([$this->row('2.5000')], $period, $this->admin, 'corrected.xlsx');
+        $this->assertSame($first->id, $replacement->id);
+        $this->assertSame('2.5000', $replacement->lines()->sole()->quantity);
+
+        $replacement->lines()->delete();
+        $replacement->delete();
+        $period->delete();
+        $this->actingAs($this->admin)->post(route('opening-balances.store'), [
+            'cutoff_at' => '2026-10-28T10:30',
+            'rows' => [$this->row('3.2500')],
+        ])->assertSessionHasNoErrors();
+        $this->assertSame('2026-10-28 02:30:00', InventoryPeriod::sole()->cutoff_at->format('Y-m-d H:i:s'));
+        $this->assertSame('3.2500', OpeningBalanceBatch::sole()->lines()->sole()->quantity);
     }
 
     private function row(string $quantity): array

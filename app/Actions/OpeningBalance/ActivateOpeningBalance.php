@@ -26,12 +26,17 @@ class ActivateOpeningBalance
         }
 
         return DB::transaction(function () use ($batch, $admin, $idempotencyKey): InventoryPeriod {
+            $control = DB::table('inventory_period_controls')->where('control_key', 'GLOBAL')->lockForUpdate()->first();
+            if (! $control) {
+                throw ValidationException::withMessages(['activation' => 'Kontrol periode persediaan tidak tersedia.']);
+            }
             $lockedBatch = OpeningBalanceBatch::whereKey($batch->id)->lockForUpdate()->firstOrFail();
             $period = InventoryPeriod::whereKey($lockedBatch->inventory_period_id)->lockForUpdate()->firstOrFail();
             if ($lockedBatch->status !== OpeningBalanceBatchStatus::Preview || $lockedBatch->stock_transaction_id !== null || $period->status !== InventoryPeriodStatus::Draft) {
                 throw ValidationException::withMessages(['activation' => 'Preview sudah diaktifkan atau periode tidak lagi DRAFT.']);
             }
-            if (InventoryPeriod::where('status', InventoryPeriodStatus::Active)->whereKeyNot($period->id)->exists()) {
+            if (($control->active_period_id !== null && $control->active_period_id !== $period->id)
+                || InventoryPeriod::where('status', InventoryPeriodStatus::Active)->whereKeyNot($period->id)->exists()) {
                 throw ValidationException::withMessages(['activation' => 'Tutup periode aktif sebelum mengaktifkan saldo awal baru.']);
             }
 
@@ -58,6 +63,7 @@ class ActivateOpeningBalance
                 'activated_at' => now(),
             ]);
             $period->update(['status' => InventoryPeriodStatus::Active, 'activated_by' => $admin->id, 'activated_at' => now()]);
+            DB::table('inventory_period_controls')->where('id', $control->id)->update(['active_period_id' => $period->id, 'updated_at' => now()]);
 
             return $period->fresh();
         });

@@ -33,6 +33,11 @@ class SaveShiftDefinition
         if ($dayStart >= $nightStart) {
             throw ValidationException::withMessages(['start_time' => 'Shift DAY harus mulai sebelum NIGHT; shift NIGHT melewati tengah malam.', 'end_time' => 'Jam mulai dan selesai harus membentuk dua shift berurutan.']);
         }
+        [$dayHour, $dayMinute] = array_map('intval', explode(':', $dayStart));
+        [$nightHour, $nightMinute] = array_map('intval', explode(':', $nightStart));
+        if (($nightHour * 60 + $nightMinute) - ($dayHour * 60 + $dayMinute) !== 720) {
+            throw ValidationException::withMessages(['end_time' => 'Setiap shift harus berdurasi tepat 12 jam.']);
+        }
 
         return DB::transaction(function () use ($data, $admin, $dayStart, $nightStart): ShiftDefinition {
             $definitions = ShiftDefinition::orderBy('code')->orderBy('effective_from')->lockForUpdate()->get();

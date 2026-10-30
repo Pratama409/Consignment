@@ -142,7 +142,7 @@ class ShiftResolutionTest extends TestCase
     public function test_invalid_or_non_future_versions_cannot_be_saved(): void
     {
         $this->actingAs(User::factory()->admin()->create());
-        foreach ([['effective_from' => '2026-10-29'], ['effective_from' => '2026-10-28'], ['code' => 'OTHER'], ['start_time' => '19:00'], ['end_time' => '07:00'], ['start_time' => 'bad'], ['name' => '']] as $invalid) {
+        foreach ([['effective_from' => '2026-10-29'], ['effective_from' => '2026-10-28'], ['code' => 'OTHER'], ['start_time' => '19:00'], ['end_time' => '07:00'], ['end_time' => '20:00'], ['start_time' => 'bad'], ['name' => '']] as $invalid) {
             $this->post('/settings/shifts', $this->payload($invalid))->assertSessionHasErrors(array_key_first($invalid));
         }
         $this->assertSame(2, ShiftDefinition::count());
@@ -162,7 +162,7 @@ class ShiftResolutionTest extends TestCase
         }
         $night = $this->resolve('2026-11-02 02:00');
         $snapshot = $night->fresh()->getAttributes();
-        $this->actingAs($admin)->post('/settings/shifts', $this->payload(['effective_from' => '2026-11-02', 'start_time' => '08:00']))->assertSessionHasErrors('effective_from');
+        $this->actingAs($admin)->post('/settings/shifts', $this->payload(['effective_from' => '2026-11-02']))->assertSessionHasErrors('effective_from');
         $this->assertSame($snapshot, $night->fresh()->getAttributes());
         $this->assertSame(4, ShiftDefinition::count());
     }

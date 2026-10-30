@@ -37,13 +37,12 @@ class OpeningBalanceController extends Controller
     public function store(StoreOpeningBalanceRequest $request, WorkbookReader $reader, SaveOpeningBalanceBatch $save)
     {
         $input = $request->validated();
-        $rows = $reader->read($request->file('file'));
+        $rows = $request->hasFile('file') ? $reader->read($request->file('file')) : $input['rows'];
         $batch = DB::transaction(function () use ($input, $rows, $request, $save) {
-            $period = InventoryPeriod::create([
-                'cutoff_at' => CarbonImmutable::parse($input['cutoff_at'], 'Asia/Makassar')->startOfDay()->utc(),
-            ]);
+            $cutoff = CarbonImmutable::createFromFormat('Y-m-d\TH:i', $input['cutoff_at'], 'Asia/Makassar')->utc();
+            $period = InventoryPeriod::firstOrCreate(['cutoff_at' => $cutoff]);
 
-            return $save->handle($rows, $period, $request->user(), $request->file('file')->getClientOriginalName());
+            return $save->handle($rows, $period, $request->user(), $request->hasFile('file') ? $request->file('file')->getClientOriginalName() : 'Entri manual');
         });
 
         return to_route('opening-balances.show', $batch)->with('success', 'Preview saldo awal berhasil dibuat. Belum ada stok yang diposting.');

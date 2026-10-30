@@ -33,8 +33,10 @@ class SaveOpeningBalanceBatch
 
         return DB::transaction(function () use ($rows, $period, $admin, $source): OpeningBalanceBatch {
             $lockedPeriod = InventoryPeriod::whereKey($period->id)->lockForUpdate()->firstOrFail();
-            if ($lockedPeriod->status !== InventoryPeriodStatus::Draft || $lockedPeriod->transactions()->exists() || OpeningBalanceBatch::where('inventory_period_id', $lockedPeriod->id)->exists()) {
-                throw ValidationException::withMessages(['period' => 'Periode harus DRAFT, kosong, dan belum mempunyai preview saldo awal.']);
+            $batch = OpeningBalanceBatch::where('inventory_period_id', $lockedPeriod->id)->lockForUpdate()->first();
+            if ($lockedPeriod->status !== InventoryPeriodStatus::Draft || $lockedPeriod->transactions()->exists()
+                || ($batch && ($batch->status->value !== 'PREVIEW' || $batch->stock_transaction_id !== null))) {
+                throw ValidationException::withMessages(['period' => 'Periode harus DRAFT dan preview belum boleh diaktifkan.']);
             }
 
             $resolved = [];
@@ -78,11 +80,16 @@ class SaveOpeningBalanceBatch
                 throw ValidationException::withMessages($errors);
             }
 
-            $batch = OpeningBalanceBatch::create([
-                'inventory_period_id' => $lockedPeriod->id,
-                'source' => mb_substr(trim($source), 0, 255) ?: 'manual',
-                'created_by' => $admin->id,
-            ]);
+            if ($batch) {
+                $batch->lines()->delete();
+                $batch->update(['source' => mb_substr(trim($source), 0, 255) ?: 'manual', 'created_by' => $admin->id]);
+            } else {
+                $batch = OpeningBalanceBatch::create([
+                    'inventory_period_id' => $lockedPeriod->id,
+                    'source' => mb_substr(trim($source), 0, 255) ?: 'manual',
+                    'created_by' => $admin->id,
+                ]);
+            }
             foreach ($resolved as $entry) {
                 $batch->lines()->create([
                     'row_number' => $entry['number'],

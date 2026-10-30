@@ -76,6 +76,8 @@ class UserManagementTest extends TestCase
         $vendor = Vendor::create(['vendor_code' => 'V', 'vendor_name' => 'Vendor']);
         $this->post('/users', $this->payload(['vendor_id' => $vendor->id]))->assertSessionHasErrors('vendor_id');
         $this->post('/users', $this->payload(['role' => 'vendor', 'vendor_id' => $vendor->id]))->assertSessionHasNoErrors();
+        $inactive = Vendor::create(['vendor_code' => 'INACTIVE', 'vendor_name' => 'Inactive', 'is_active' => false]);
+        $this->post('/users', $this->payload(['email' => 'inactive-vendor@example.test', 'role' => 'vendor', 'vendor_id' => $inactive->id]))->assertSessionHasErrors('vendor_id');
         $this->post('/users', $this->payload())->assertSessionHasErrors('email');
         $this->assertSame(2, User::count());
         $this->assertSame(1, AuditLog::count());
