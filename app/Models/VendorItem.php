@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\OwnershipType;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Validation\ValidationException;
 
 class VendorItem extends MasterDataModel
@@ -56,5 +57,10 @@ class VendorItem extends MasterDataModel
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);
+    }
+
+    public function stockBalances(): HasMany
+    {
+        return $this->hasMany(StockBalance::class);
     }
 }
