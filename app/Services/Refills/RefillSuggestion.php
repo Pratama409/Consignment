@@ -19,7 +19,7 @@ class RefillSuggestion
             ->get()
             ->sum(fn (VendorRefillLine $line) => max(0, $this->units($line->requested_quantity) - $this->units($line->posted_received ?? '0')));
 
-        return $this->decimal(max(0, $target - $stockUnits - $open));
+        return (string) intdiv(max(0, $target - $stockUnits - $open) + 9999, 10000);
     }
 
     private function units(string|int|float|null $value): int
@@ -28,10 +28,5 @@ class RefillSuggestion
         [$whole, $fraction] = explode('.', $value);
 
         return ((int) $whole * 10000) + (int) $fraction;
-    }
-
-    private function decimal(int $units): string
-    {
-        return number_format($units / 10000, 4, '.', '');
     }
 }

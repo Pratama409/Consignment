@@ -14,6 +14,7 @@ use App\Models\VendorRefillLine;
 use App\Models\VendorRefillReceipt;
 use App\Models\VendorRefillShipment;
 use App\Support\OperationalNumberGenerator;
+use App\Support\WholeQuantity;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -46,6 +47,9 @@ class PostRefillReceipt
             $buckets = [];
             foreach ($lines as $input) {
                 $lineId = (string) ($input['refill_line_id'] ?? '');
+                if (! WholeQuantity::isPositive($input['quantity'] ?? null)) {
+                    throw ValidationException::withMessages(['receipt' => 'Quantity penerimaan harus berupa satuan bulat lebih dari nol.']);
+                }
                 $units = $this->units((string) ($input['quantity'] ?? '0'));
                 $bucket = $lineId.'|'.($input['location_id'] ?? '');
                 if ($units <= 0 || isset($buckets[$bucket])) {

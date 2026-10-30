@@ -7,6 +7,7 @@ use App\Models\Vendor;
 use App\Models\VendorItem;
 use App\Models\VendorRefill;
 use App\Support\OperationalNumberGenerator;
+use App\Support\WholeQuantity;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -25,10 +26,10 @@ class CreateVendorRefill
             $lockedVendor = Vendor::query()->lockForUpdate()->findOrFail($vendor->id);
             $seen = [];
             foreach ($lines as $line) {
-                $quantity = (float) ($line['quantity'] ?? 0);
+                $quantity = $line['quantity'] ?? null;
                 $itemId = (string) ($line['item_id'] ?? '');
-                if ($quantity <= 0 || isset($seen[$itemId]) || ! VendorItem::active()->where('vendor_id', $lockedVendor->id)->where('item_id', $itemId)->whereHas('item', fn ($query) => $query->where('is_active', true)->where('ownership_type', 'CONSIGNMENT'))->exists()) {
-                    throw ValidationException::withMessages(['lines' => 'Barang refill harus CONSIGNMENT aktif, terhubung ke Vendor, unik, dan quantity lebih dari nol.']);
+                if (! WholeQuantity::isPositive($quantity) || isset($seen[$itemId]) || ! VendorItem::active()->where('vendor_id', $lockedVendor->id)->where('item_id', $itemId)->whereHas('item', fn ($query) => $query->where('is_active', true)->where('ownership_type', 'CONSIGNMENT'))->exists()) {
+                    throw ValidationException::withMessages(['lines' => 'Barang refill harus CONSIGNMENT aktif, terhubung ke Vendor, unik, dan quantity berupa satuan bulat lebih dari nol.']);
                 }
                 $seen[$itemId] = true;
             }

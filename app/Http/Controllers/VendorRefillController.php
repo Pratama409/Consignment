@@ -38,7 +38,7 @@ class VendorRefillController extends Controller
     public function store(Request $request, CreateVendorRefill $a)
     {
         abort_unless($request->user()->isAdmin(), 403);
-        $d = $request->validate(['vendor_id' => ['required', 'uuid', 'exists:vendors,id'], 'notes' => ['nullable', 'string', 'max:2000'], 'lines' => ['required', 'array', 'min:1'], 'lines.*.item_id' => ['required', 'uuid'], 'lines.*.quantity' => ['required', 'numeric', 'min:0.0001', 'decimal:0,4']]);
+        $d = $request->validate(['vendor_id' => ['required', 'uuid', 'exists:vendors,id'], 'notes' => ['nullable', 'string', 'max:2000'], 'lines' => ['required', 'array', 'min:1'], 'lines.*.item_id' => ['required', 'uuid'], 'lines.*.quantity' => ['required', 'integer', 'min:1']]);
         $r = $a->handle(Vendor::findOrFail($d['vendor_id']), $request->user(), $d['lines'], $d['notes'] ?? null);
 
         return to_route('refills.show', $r)->with('success', 'Vendor Refill berhasil dibuat.');
@@ -55,7 +55,7 @@ class VendorRefillController extends Controller
     public function revision(Request $request, VendorRefill $refill, ProposeRefillRevision $a)
     {
         abort_unless($request->user()->isVendor() && $request->user()->vendor_id === $refill->vendor_id, 403);
-        $d = $request->validate(['line_id' => ['required', 'uuid'], 'quantity' => ['required', 'numeric', 'min:0.0001', 'decimal:0,4'], 'reason' => ['required', 'string', 'max:2000']]);
+        $d = $request->validate(['line_id' => ['required', 'uuid'], 'quantity' => ['required', 'integer', 'min:1'], 'reason' => ['required', 'string', 'max:2000']]);
         $a->handle($refill->lines()->findOrFail($d['line_id']), $request->user(), (string) $d['quantity'], $d['reason']);
 
         return back()->with('success', 'Usulan revisi dikirim.');
@@ -73,7 +73,7 @@ class VendorRefillController extends Controller
     public function shipment(Request $request, VendorRefill $refill, CreateRefillShipment $a)
     {
         abort_unless($request->user()->isVendor() && $request->user()->vendor_id === $refill->vendor_id, 403);
-        $d = $request->validate(['document_no' => ['required', 'string', 'max:100'], 'expedition' => ['nullable', 'string', 'max:150'], 'shipped_at' => ['required', 'date'], 'lines' => ['required', 'array', 'min:1'], 'lines.*.refill_line_id' => ['required', 'uuid'], 'lines.*.quantity' => ['required', 'numeric', 'min:0.0001', 'decimal:0,4']]);
+        $d = $request->validate(['document_no' => ['required', 'string', 'max:100'], 'expedition' => ['nullable', 'string', 'max:150'], 'shipped_at' => ['required', 'date'], 'lines' => ['required', 'array', 'min:1'], 'lines.*.refill_line_id' => ['required', 'uuid'], 'lines.*.quantity' => ['required', 'integer', 'min:1']]);
         $a->handle($refill, $request->user(), $d['document_no'], CarbonImmutable::parse($d['shipped_at'], 'Asia/Makassar'), $d['lines'], $d['expedition'] ?? null);
 
         return back()->with('success', 'Pengiriman tersimpan.');
@@ -93,6 +93,6 @@ class VendorRefillController extends Controller
         $shipped = $line->shipmentLines->sum('shipped_quantity');
         $received = $line->receiptLines->filter(fn ($row) => $row->receipt->status === 'POSTED')->sum('received_quantity');
 
-        return ['id' => $line->id, 'item' => $line->item->item_code.' · '.$line->item->item_name, 'quantity' => $line->requested_quantity, 'shipped' => number_format((float) $shipped, 4, '.', ''), 'received' => number_format((float) $received, 4, '.', ''), 'outstanding' => number_format(max(0, (float) $line->requested_quantity - (float) $received), 4, '.', ''), 'revisions' => $line->revisions->map(fn ($revision) => ['id' => $revision->id, 'quantity' => $revision->proposed_quantity, 'reason' => $revision->reason, 'status' => $revision->status, 'review_url' => route('refills.revisions.review', $revision)])];
+        return ['id' => $line->id, 'item' => $line->item->item_code.' · '.$line->item->item_name, 'quantity' => (int) $line->requested_quantity, 'shipped' => (int) $shipped, 'received' => (int) $received, 'outstanding' => max(0, (int) $line->requested_quantity - (int) $received), 'revisions' => $line->revisions->map(fn ($revision) => ['id' => $revision->id, 'quantity' => (int) $revision->proposed_quantity, 'reason' => $revision->reason, 'status' => $revision->status, 'review_url' => route('refills.revisions.review', $revision)])];
     }
 }

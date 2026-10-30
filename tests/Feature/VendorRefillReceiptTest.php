@@ -115,4 +115,13 @@ class VendorRefillReceiptTest extends TestCase
         $this->expectException(ValidationException::class);
         app(CreateRefillShipment::class)->handle($refill, $this->vendorUser, 'DO-B', now()->toImmutable(), [['refill_line_id' => $line->id, 'quantity' => 4]]);
     }
+
+    public function test_incoming_refill_rejects_fractional_units(): void
+    {
+        $refill = app(CreateVendorRefill::class)->handle($this->vendor, $this->admin, [['item_id' => $this->relation->item_id, 'quantity' => 5]]);
+        $line = $refill->lines->sole();
+        $shipment = app(CreateRefillShipment::class)->handle($refill, $this->vendorUser, 'DO-WHOLE', now()->toImmutable(), [['refill_line_id' => $line->id, 'quantity' => 5]]);
+        $this->expectException(ValidationException::class);
+        app(PostRefillReceipt::class)->handle($shipment, $this->warehouse, 'DO-WHOLE', now()->toImmutable(), [['refill_line_id' => $line->id, 'location_id' => $this->relation->location_id, 'quantity' => '1.5']], 'fraction-key');
+    }
 }
