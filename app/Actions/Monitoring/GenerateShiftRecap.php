@@ -14,11 +14,12 @@ class GenerateShiftRecap
     {
         $rows = StockLedgerEntry::query()->whereHas('transaction', fn ($query) => $query->where('operational_shift_id', $shift->id))->with('transaction')->orderBy('id')->get();
         $opening = $this->sumUnits(StockLedgerEntry::query()->whereHas('transaction', fn ($query) => $query->where('posted_at', '<', $shift->starts_at))->pluck('quantity')->all());
-        $out = abs($this->sumUnits($rows->where(fn ($row) => (float) $row->quantity < 0)->pluck('quantity')->all()));
+        $incoming = $this->sumUnits($rows->filter(fn ($row) => in_array($row->transaction->type->value, ['OPENING', 'REFILL_RECEIPT', 'MANUAL_RECEIPT'], true))->pluck('quantity')->all());
+        $out = abs($this->sumUnits($rows->filter(fn ($row) => $row->transaction->type->value === 'MATERIAL_ISSUE')->pluck('quantity')->all()));
         $adjustment = $this->sum($rows->filter(fn ($row) => in_array($row->transaction->type->value, ['ADJUSTMENT', 'REVERSAL'], true))->pluck('quantity')->all());
         $outstandingDocuments = Schema::hasColumn('material_issue_lines', 'documents_outstanding') ? (int) MaterialIssueLine::where('documents_outstanding', true)->count() : 0;
         $summary = [
-            'opening' => $this->decimal($opening), 'in' => $this->decimal($this->sumUnits($rows->where(fn ($row) => (float) $row->quantity > 0)->pluck('quantity')->all())),
+            'opening' => $this->decimal($opening), 'in' => $this->decimal($incoming),
             'out' => $this->decimal($out), 'adjustment' => $adjustment,
             'closing' => $this->decimal($opening + $this->sumUnits($rows->pluck('quantity')->all())),
             'outstanding_refills' => VendorRefill::whereNotIn('status', ['COMPLETED', 'CLOSED_PARTIAL', 'CANCELLED'])->count(),
@@ -45,7 +46,7 @@ class GenerateShiftRecap
             $sum += str_starts_with($normalized, '-') ? -$units : $units;
         }
 
-return $sum;
+        return $sum;
     }
 
     private function decimal(int $units): string
