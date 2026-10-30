@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class MaterialIssueLine extends Model
 {
@@ -30,5 +31,10 @@ class MaterialIssueLine extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);
+    }
+
+    public function procurementRequirement(): HasOne
+    {
+        return $this->hasOne(ProcurementRequirement::class);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Actions\MaterialRequests;
 
 use App\Actions\Inventory\PostStockOut;
+use App\Actions\Procurement\CreateProcurementRequirement;
 use App\Data\StockPostingData;
 use App\Data\StockPostingLineData;
 use App\Enums\OwnershipType;
@@ -21,7 +22,7 @@ use Illuminate\Validation\ValidationException;
 
 class CreateMaterialIssue
 {
-    public function __construct(private PostStockOut $postStockOut, private OperationalNumberGenerator $numbers) {}
+    public function __construct(private PostStockOut $postStockOut, private OperationalNumberGenerator $numbers, private CreateProcurementRequirement $procurement) {}
 
     /** @param list<array{line_id:string,quantity:string|int|float,vendor_item_id?:string|null,location_id?:string|null}> $lines */
     public function handle(MaterialRequest $request, User $warehouse, string $receiver, CarbonImmutable $issuedAt, array $lines, string $idempotencyKey): MaterialIssue
@@ -92,6 +93,9 @@ class CreateMaterialIssue
             }
             $issue->status = 'POSTED';
             $issue->save();
+            foreach ($issue->lines()->get() as $issuedLine) {
+                $this->procurement->handle($issuedLine);
+            }
 
             foreach ($locked->lines()->lockForUpdate()->get() as $requestLine) {
                 $effective = $requestLine->effectiveQuantity();

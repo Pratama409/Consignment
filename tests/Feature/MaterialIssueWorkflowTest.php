@@ -62,6 +62,7 @@ class MaterialIssueWorkflowTest extends TestCase
         $this->assertSame($issue->id, $retry->id);
         $this->assertSame('3.0000', StockBalance::where('vendor_item_id', $relation->id)->sole()->quantity);
         $this->assertCount(2, $issue->lines);
+        $this->assertDatabaseCount('procurement_requirements', 1);
         $this->assertSame('PARTIALLY_ISSUED', $request->fresh()->status);
     }
 
