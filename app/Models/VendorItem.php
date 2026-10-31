@@ -4,7 +4,9 @@ namespace App\Models;
 
 use App\Enums\OwnershipType;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
 class VendorItem extends MasterDataModel
@@ -57,6 +59,26 @@ class VendorItem extends MasterDataModel
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);
+    }
+
+    public function stockBuckets(): HasMany
+    {
+        return $this->hasMany(StockBucket::class);
+    }
+
+    /**
+     * The default location plus every location where this pair still holds stock. When stockBuckets is
+     * eager-loaded the caller has already restricted it to buckets with a positive balance.
+     *
+     * @return Collection<int, string>
+     */
+    public function usableLocationIds(): Collection
+    {
+        $buckets = $this->relationLoaded('stockBuckets')
+            ? $this->stockBuckets
+            : $this->stockBuckets()->whereHas('balance', fn ($balance) => $balance->where('quantity', '>', 0))->get();
+
+        return collect([$this->location_id])->merge($buckets->pluck('location_id'))->unique()->values();
     }
 
     public function stockBalances(): HasManyThrough

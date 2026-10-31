@@ -28,7 +28,7 @@ use RuntimeException;
 
 /**
  * Dummy data for demos and manual testing. Everything operational goes through the real actions,
- * so ledger invariants hold. Never runs in production.
+ * so ledger invariants hold. Runs only in the local and testing environments.
  *
  * Demo accounts (password "Demo-password-123"): admin@demo.test, warehouse@demo.test, vendor@demo.test.
  */
@@ -38,8 +38,8 @@ class DemoDataSeeder extends Seeder
 
     public function run(): void
     {
-        if (app()->isProduction()) {
-            throw new RuntimeException('Demo data must never be seeded in production.');
+        if (! app()->environment('local', 'testing')) {
+            throw new RuntimeException('Demo data (known passwords) may only be seeded in the local or testing environment.');
         }
 
         $this->call(MasterDataSeeder::class);

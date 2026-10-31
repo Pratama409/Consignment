@@ -63,7 +63,8 @@ class StockCorrectionController extends Controller
             'store_url' => route('stock-corrections.store'), 'index_url' => route('stock-corrections.index'),
             'items' => Item::active()->orderBy('item_code')->get(['id', 'item_code', 'item_name', 'ownership_type']),
             'locations' => Location::active()->orderBy('location_code')->get(['id', 'location_code', 'location_name']),
-            'vendor_items' => VendorItem::active()->with('vendor:id,vendor_code,vendor_name')->get(['id', 'item_id', 'vendor_id', 'location_id']),
+            'vendor_items' => VendorItem::active()->with(['vendor:id,vendor_code,vendor_name', 'stockBuckets' => fn ($buckets) => $buckets->whereHas('balance', fn ($balance) => $balance->where('quantity', '>', 0))])->get(['id', 'item_id', 'vendor_id', 'location_id'])
+                ->flatMap(fn ($pair) => $pair->usableLocationIds()->map(fn ($locationId) => ['id' => $pair->id, 'item_id' => $pair->item_id, 'vendor_id' => $pair->vendor_id, 'location_id' => $locationId, 'vendor' => $pair->vendor]))->values(),
         ]);
     }
 

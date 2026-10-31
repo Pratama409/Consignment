@@ -21,17 +21,29 @@ class ResolveStockBucket
 
         if ($item->ownership_type === OwnershipType::Stock && $vendorItem === null
             && StockItemLocation::active()->where('item_id', $item->id)->where('location_id', $location->id)->exists()) {
-            return StockBucket::firstOrCreate(['item_id' => $item->id, 'location_id' => $location->id]);
+            return $this->lockedOrCreated(['item_id' => $item->id, 'location_id' => $location->id]);
         }
 
         if ($item->ownership_type === OwnershipType::Consignment && $vendorItem?->is_active
             && $vendorItem->item_id === $item->id && Vendor::active()->whereKey($vendorItem->vendor_id)->exists()) {
-            $existing = StockBucket::where('vendor_item_id', $vendorItem->id)->where('location_id', $location->id)->first();
+            $identity = ['vendor_item_id' => $vendorItem->id, 'location_id' => $location->id];
+            $existing = StockBucket::where($identity)->lockForUpdate()->first();
             if ($existing || $vendorItem->location_id === $location->id) {
-                return $existing ?? StockBucket::create(['vendor_item_id' => $vendorItem->id, 'location_id' => $location->id]);
+                return $existing ?? StockBucket::create($identity);
             }
         }
 
         throw ValidationException::withMessages(['stock' => 'Kepemilikan atau penempatan barang tidak sesuai atau tidak aktif.']);
+    }
+
+    /**
+     * A locking read sees rows committed after this transaction's snapshot (REPEATABLE READ), so a concurrent
+     * posting that created the bucket first is found instead of colliding on the unique index.
+     *
+     * @param  array{item_id: string, location_id: string}  $identity
+     */
+    private function lockedOrCreated(array $identity): StockBucket
+    {
+        return StockBucket::where($identity)->lockForUpdate()->first() ?? StockBucket::create($identity);
     }
 }

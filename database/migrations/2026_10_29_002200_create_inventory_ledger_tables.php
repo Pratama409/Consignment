@@ -114,6 +114,8 @@ return new class extends Migration
         }
         $this->guard('stock_buckets_identity_update', 'stock_buckets', 'UPDATE', "NOT ({$identity})", 'Bucket identity is immutable');
         $this->guard('stock_buckets_immutable_delete', 'stock_buckets', 'DELETE', '1 = 1', 'Stock buckets preserve inventory history');
+        // A bucket reaches its item and Vendor only through vendor_items, so that identity is ledger history.
+        $this->guard('vendor_items_identity_update', 'vendor_items', 'UPDATE', 'NEW.item_id <> OLD.item_id OR NEW.vendor_id <> OLD.vendor_id', 'Vendor item identity is immutable');
     }
 
     private function integrityGuards(): void
@@ -174,7 +176,9 @@ return new class extends Migration
 
     public function down(): void
     {
-        // Triggers are owned by their tables and are removed with them on both supported engines.
+        // Triggers are owned by their tables and are removed with them on both supported engines,
+        // except the one this migration added to the pre-existing vendor_items table.
+        DB::unprepared('DROP TRIGGER IF EXISTS vendor_items_identity_update');
         Schema::dropIfExists('stock_lot_allocations');
         Schema::dropIfExists('stock_lots');
         Schema::dropIfExists('stock_balances');

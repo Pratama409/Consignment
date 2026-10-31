@@ -48,6 +48,14 @@ class DemoDataSeederTest extends TestCase
         $this->assertSame(1, MaterialIssue::count());
     }
 
+    public function test_seeder_refuses_outside_local_and_testing_environments(): void
+    {
+        $this->app->detectEnvironment(fn () => 'staging');
+
+        $this->expectException(RuntimeException::class);
+        $this->app->make(DemoDataSeeder::class)->run();
+    }
+
     public function test_seeder_refuses_in_production(): void
     {
         $this->app->detectEnvironment(fn () => 'production');

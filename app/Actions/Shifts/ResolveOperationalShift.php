@@ -17,7 +17,8 @@ class ResolveOperationalShift
             // Settings and posting take the same locks in the same order.
             $definitions = ShiftDefinition::orderBy('code')->orderBy('effective_from')->lockForUpdate()->get();
             $utc = $postedAt->utc()->format('Y-m-d H:i:s');
-            $existing = OperationalShift::where('starts_at', '<=', $utc)->where('ends_at', '>', $utc)->first();
+            // Locking reads see shifts committed after this transaction's snapshot, so a concurrent first posting is reused, not duplicated.
+            $existing = OperationalShift::where('starts_at', '<=', $utc)->where('ends_at', '>', $utc)->lockForUpdate()->first();
             if ($existing) {
                 return $existing;
             }
@@ -32,10 +33,10 @@ class ResolveOperationalShift
                         ? $date->setTimeFromTimeString($definition->end_time)
                         : $date->addDay()->setTimeFromTimeString($this->definition($definitions, 'DAY', $date->addDay())->start_time);
                     if ($local->greaterThanOrEqualTo($start) && $local->lessThan($end)) {
-                        return OperationalShift::firstOrCreate(
-                            ['operational_date' => $date->toDateString(), 'code' => $code],
-                            ['shift_definition_id' => $definition->id, 'name' => $definition->name, 'timezone' => ShiftDefinition::TIMEZONE, 'starts_at' => $start->utc(), 'ends_at' => $end->utc()],
-                        );
+                        $identity = ['operational_date' => $date->toDateString(), 'code' => $code];
+
+                        return OperationalShift::where($identity)->lockForUpdate()->first()
+                            ?? OperationalShift::create([...$identity, 'shift_definition_id' => $definition->id, 'name' => $definition->name, 'timezone' => ShiftDefinition::TIMEZONE, 'starts_at' => $start->utc(), 'ends_at' => $end->utc()]);
                     }
                 }
             }

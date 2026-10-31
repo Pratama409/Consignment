@@ -190,6 +190,20 @@ class MaterialIssueWorkflowTest extends TestCase
             ->where('rows.data', fn ($rows) => collect($rows)->every(fn ($row) => $row['work_order_no'] === null && $row['backcharge'] === false)));
     }
 
+    public function test_data_out_offers_bucket_with_stock_at_a_former_default_location(): void
+    {
+        [$request, $warehouse, , $line, $relation, $oldLocation] = $this->readyConsignmentLine();
+        $moved = Location::create(['location_code' => 'MOVED', 'location_name' => 'Moved']);
+        $relation->update(['location_id' => $moved->id]);
+
+        $this->actingAs($warehouse)->get(route('material-requests.show', $request))->assertInertia(fn (Assert $page) => $page
+            ->where('request.lines', function ($lines) use ($line, $oldLocation, $moved) {
+                $locations = collect(collect($lines)->firstWhere('id', $line->id)['buckets'])->pluck('location_id');
+
+                return $locations->contains($oldLocation->id) && $locations->contains($moved->id);
+            }));
+    }
+
     private function issuePayload($line, $relation, $location, array $extra = []): array
     {
         return [...['receiver_name' => 'Receiver', 'issued_at' => now()->toDateTimeString(), 'idempotency_key' => (string) Str::uuid(),

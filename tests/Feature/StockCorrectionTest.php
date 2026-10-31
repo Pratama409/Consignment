@@ -113,6 +113,20 @@ class StockCorrectionTest extends TestCase
         $this->assertSame('2.5000', StockBalance::whereHas('bucket', fn ($query) => $query->where('vendor_item_id', $pair->id))->sole()->quantity);
     }
 
+    public function test_correction_form_offers_vendor_item_at_a_former_default_location(): void
+    {
+        $consignment = Item::create(['item_code' => 'CORR-M-'.Str::random(6), 'part_number' => 'PN-CORR-M', 'item_name' => 'Moved correction', 'ownership_type' => 'CONSIGNMENT', 'tracking_type' => 'QUANTITY', 'unit_id' => Unit::firstOrFail()->id, 'minimum_stock' => '0.0000']);
+        $pair = VendorItem::create(['item_id' => $consignment->id, 'vendor_id' => Vendor::create(['vendor_code' => 'CORR-M', 'vendor_name' => 'Moved Vendor'])->id, 'location_id' => $this->location->id]);
+        $adjustment = app(CreateStockAdjustment::class)->handle([...$this->adjustmentData('IN'), 'item_id' => $consignment->id, 'vendor_item_id' => $pair->id], $this->warehouse);
+        app(PostStockAdjustment::class)->handle(app(ReviewStockAdjustment::class)->handle($adjustment, true, 'Disetujui', $this->admin), $this->admin, 'adjustment:moved');
+        $moved = Location::create(['location_code' => 'CORR-MOVED', 'location_name' => 'Moved']);
+        $pair->update(['location_id' => $moved->id]);
+
+        $this->actingAs($this->warehouse)->get(route('stock-corrections.create'))->assertInertia(fn ($page) => $page
+            ->where('vendor_items', fn ($rows) => collect($rows)->contains(fn ($row) => $row['id'] === $pair->id && $row['location_id'] === $this->location->id)
+                && collect($rows)->contains(fn ($row) => $row['id'] === $pair->id && $row['location_id'] === $moved->id)));
+    }
+
     private function adjustmentData(string $direction, string $reason = 'Selisih hasil hitung fisik'): array
     {
         return ['item_id' => $this->item->id, 'vendor_item_id' => null, 'location_id' => $this->location->id, 'direction' => $direction, 'quantity' => '2.5000', 'reason' => $reason];

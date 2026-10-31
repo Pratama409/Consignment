@@ -22,6 +22,7 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\MasterDataSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Process\Process;
 use Tests\TestCase;
 
@@ -87,7 +88,14 @@ class MySqlStockConcurrencyTest extends TestCase
         }
     }
 
-    public function test_concurrent_first_postings_create_one_bucket(): void
+    /** @return array<string, array{bool}> */
+    public static function outerTransactionModes(): array
+    {
+        return ['direct posting' => [false], 'inside an outer transaction with an earlier read' => [true]];
+    }
+
+    #[DataProvider('outerTransactionModes')]
+    public function test_concurrent_first_postings_create_one_bucket(bool $outer): void
     {
         if (DB::getDriverName() !== 'mysql' || getenv('STOCK_POSTING_MYSQL_ISOLATED') !== '1') {
             $this->markTestSkipped('Requires explicitly provisioned isolated consignment_testing MySQL DB and STOCK_POSTING_MYSQL_ISOLATED=1; no database was touched.');
@@ -107,7 +115,7 @@ class MySqlStockConcurrencyTest extends TestCase
         try {
             for ($i = 0; $i < 2; $i++) {
                 $worker = new Process([PHP_BINARY, base_path('tests/Support/stock-posting-worker.php')], base_path(), $env);
-                $worker->setInput(json_encode(['gate' => $gate, 'actor' => $actor->id, 'item' => $item->id, 'location' => $location->id, 'direction' => 'in'], JSON_THROW_ON_ERROR));
+                $worker->setInput(json_encode(['gate' => $gate, 'actor' => $actor->id, 'item' => $item->id, 'location' => $location->id, 'direction' => 'in', 'outer' => $outer], JSON_THROW_ON_ERROR));
                 $worker->setTimeout(30);
                 $worker->start();
                 $workers[] = $worker;
@@ -122,6 +130,8 @@ class MySqlStockConcurrencyTest extends TestCase
             file_put_contents($gate, 'go');
             foreach ($workers as $worker) {
                 $this->assertSame(0, $worker->wait(), $worker->getErrorOutput());
+                // The worker's exception handler exits 0 on failure, so require its explicit success line.
+                $this->assertStringContainsString('"result":"posted"', $worker->getOutput(), $worker->getOutput().$worker->getErrorOutput());
             }
             $this->assertSame(1, StockBucket::count());
             $this->assertSame('2.0000', StockBalance::sole()->quantity);

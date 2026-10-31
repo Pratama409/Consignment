@@ -74,6 +74,18 @@ class StockBucketSchemaTest extends TestCase
         $this->assertRejects(fn () => $this->insertBucket(['item_id' => $this->consignmentItem->id, 'vendor_item_id' => null, 'location_id' => $this->location->id]));
     }
 
+    public function test_vendor_item_identity_cannot_change_through_sql_but_location_can(): void
+    {
+        $other = Vendor::create(['vendor_code' => 'ID-OTHER', 'vendor_name' => 'Other']);
+        $otherItem = $this->makeItem('CONSIGNMENT');
+        $moved = Location::create(['location_code' => 'ID-MOVED', 'location_name' => 'Moved']);
+
+        $this->assertRejects(fn () => DB::table('vendor_items')->where('id', $this->vendorItem->id)->update(['vendor_id' => $other->id]));
+        $this->assertRejects(fn () => DB::table('vendor_items')->where('id', $this->vendorItem->id)->update(['item_id' => $otherItem->id]));
+        DB::table('vendor_items')->where('id', $this->vendorItem->id)->update(['location_id' => $moved->id]);
+        $this->assertSame($moved->id, $this->vendorItem->fresh()->location_id);
+    }
+
     public function test_duplicate_item_location_rejected(): void
     {
         $this->bucketFor($this->stockItem, null, $this->location);
