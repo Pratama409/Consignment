@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Item;
+use App\Models\VendorRefillFollowUp;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -71,7 +72,7 @@ class HandleInertiaRequests extends Middleware
                 'login' => route('login'),
                 'logout' => route('logout'),
             ],
-            'navigation' => ['current' => $section, 'label' => $labels[$section] ?? 'Master Data', 'can_import' => $user?->can('create', Item::class) ?? false],
+            'navigation' => ['badges' => ['refills' => fn () => $user?->isVendor() ? VendorRefillFollowUp::whereNull('acknowledged_at')->whereHas('refill', fn ($refill) => $refill->where('vendor_id', $user->vendor_id))->count() : 0], 'current' => $section, 'label' => $labels[$section] ?? 'Master Data', 'can_import' => $user?->can('create', Item::class) ?? false],
         ];
     }
 }

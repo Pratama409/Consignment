@@ -74,6 +74,8 @@ Route::middleware(['auth', EnsureActiveUser::class])->group(function () {
     Route::post('/vendor-refills/{refill}/revisions', [VendorRefillController::class, 'revision'])->whereUuid('refill')->name('refills.revisions.store');
     Route::post('/vendor-refill-revisions/{revision}/review', [VendorRefillController::class, 'review'])->whereUuid('revision')->name('refills.revisions.review');
     Route::post('/vendor-refills/{refill}/shipments', [VendorRefillController::class, 'shipment'])->whereUuid('refill')->name('refills.shipments.store');
+    Route::post('/vendor-refills/{refill}/follow-ups', [VendorRefillController::class, 'followUp'])->whereUuid('refill')->name('refills.follow-ups.store');
+    Route::post('/vendor-refills/{refill}/follow-ups/acknowledge', [VendorRefillController::class, 'acknowledgeFollowUp'])->whereUuid('refill')->name('refills.follow-ups.acknowledge');
     Route::post('/vendor-refills/{refill}/close', [VendorRefillController::class, 'close'])->whereUuid('refill')->name('refills.close');
     Route::get('/incoming-refills', [IncomingRefillController::class, 'index'])->name('incoming-refills.index');
     Route::post('/incoming-refills/{shipment}/receipts', [IncomingRefillController::class, 'store'])->whereUuid('shipment')->name('incoming-refills.receipts.store');

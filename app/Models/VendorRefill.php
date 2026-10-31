@@ -33,6 +33,11 @@ class VendorRefill extends Model
         return $this->hasMany(VendorRefillShipment::class);
     }
 
+    public function followUps(): HasMany
+    {
+        return $this->hasMany(VendorRefillFollowUp::class);
+    }
+
     public function receipts(): HasMany
     {
         return $this->hasMany(VendorRefillReceipt::class);

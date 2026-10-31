@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Refills\AcknowledgeRefillFollowUp;
 use App\Actions\Refills\CloseVendorRefill;
 use App\Actions\Refills\CreateRefillShipment;
 use App\Actions\Refills\CreateVendorRefill;
 use App\Actions\Refills\ProposeRefillRevision;
+use App\Actions\Refills\RequestRefillFollowUp;
 use App\Actions\Refills\ReviewRefillRevision;
 use App\Models\Vendor;
 use App\Models\VendorRefill;
@@ -19,12 +21,12 @@ class VendorRefillController extends Controller
 {
     public function index(Request $request)
     {
-        $q = VendorRefill::with('vendor')->latest();
+        $q = VendorRefill::with('vendor')->withCount(['followUps as follow_up_open' => fn ($followUps) => $followUps->whereNull('acknowledged_at')])->latest();
         if ($request->user()->isVendor()) {
             $q->where('vendor_id', $request->user()->vendor_id);
         }
 
-        return Inertia::render('Refills/Index', ['refills' => $q->paginate(20)->through(fn ($r) => ['id' => $r->id, 'number' => $r->refill_no, 'vendor' => $r->vendor->vendor_name, 'status' => $r->status, 'requested_at' => $r->requested_at?->timezone('Asia/Makassar')->format('d/m/Y H:i'), 'show_url' => route('refills.show', $r)]), 'can_create' => $request->user()->isAdmin(), 'create_url' => route('refills.create')]);
+        return Inertia::render('Refills/Index', ['refills' => $q->paginate(20)->through(fn ($r) => ['id' => $r->id, 'follow_up_open' => (int) $r->follow_up_open, 'number' => $r->refill_no, 'vendor' => $r->vendor->vendor_name, 'status' => $r->status, 'requested_at' => $r->requested_at?->timezone('Asia/Makassar')->format('d/m/Y H:i'), 'show_url' => route('refills.show', $r)]), 'can_create' => $request->user()->isAdmin(), 'create_url' => route('refills.create')]);
     }
 
     public function create(Request $request, RefillSuggestion $s)
@@ -47,9 +49,16 @@ class VendorRefillController extends Controller
     public function show(Request $request, VendorRefill $refill)
     {
         abort_if($request->user()->isVendor() && $request->user()->vendor_id !== $refill->vendor_id, 403);
+        $openFollowUps = $refill->followUps()->whereNull('acknowledged_at')->latest()->get();
+        $user = $request->user();
         $refill->load(['vendor', 'lines.item', 'lines.revisions', 'lines.shipmentLines', 'lines.receiptLines.receipt', 'shipments', 'receipts.lines']);
 
-        return Inertia::render('Refills/Show', ['role' => $request->user()->role->value, 'refill' => ['number' => $refill->refill_no, 'vendor' => $refill->vendor->vendor_name, 'status' => $refill->status, 'revision_url' => route('refills.revisions.store', $refill), 'shipment_url' => route('refills.shipments.store', $refill), 'close_url' => route('refills.close', $refill), 'lines' => $refill->lines->map(fn ($line) => $this->linePayload($line)), 'shipments' => $refill->shipments, 'receipts' => $refill->receipts]]);
+        return Inertia::render('Refills/Show', ['role' => $request->user()->role->value, 'refill' => ['follow_up' => [
+            'open' => $openFollowUps->count(), 'note' => $openFollowUps->first()?->note,
+            'can_request' => ! $user->isVendor() && $refill->status === 'PARTIAL' && $openFollowUps->isEmpty(),
+            'can_acknowledge' => $user->isVendor() && $openFollowUps->isNotEmpty(),
+            'request_url' => route('refills.follow-ups.store', $refill), 'acknowledge_url' => route('refills.follow-ups.acknowledge', $refill),
+        ], 'number' => $refill->refill_no, 'vendor' => $refill->vendor->vendor_name, 'status' => $refill->status, 'revision_url' => route('refills.revisions.store', $refill), 'shipment_url' => route('refills.shipments.store', $refill), 'close_url' => route('refills.close', $refill), 'lines' => $refill->lines->map(fn ($line) => $this->linePayload($line)), 'shipments' => $refill->shipments, 'receipts' => $refill->receipts]]);
     }
 
     public function revision(Request $request, VendorRefill $refill, ProposeRefillRevision $a)
@@ -77,6 +86,23 @@ class VendorRefillController extends Controller
         $a->handle($refill, $request->user(), $d['document_no'], CarbonImmutable::parse($d['shipped_at'], 'Asia/Makassar'), $d['lines'], $d['expedition'] ?? null);
 
         return back()->with('success', 'Pengiriman tersimpan.');
+    }
+
+    public function followUp(Request $request, VendorRefill $refill, RequestRefillFollowUp $a)
+    {
+        abort_if($request->user()->isVendor(), 403);
+        $d = $request->validate(['note' => ['nullable', 'string', 'max:2000']]);
+        $a->handle($refill, $request->user(), $d['note'] ?? null);
+
+        return back()->with('success', 'Tindak lanjut dikirim ke Vendor.');
+    }
+
+    public function acknowledgeFollowUp(Request $request, VendorRefill $refill, AcknowledgeRefillFollowUp $a)
+    {
+        abort_unless($request->user()->isVendor() && $request->user()->vendor_id === $refill->vendor_id, 403);
+        $a->handle($refill, $request->user());
+
+        return back()->with('success', 'Tindak lanjut ditandai sudah dibaca.');
     }
 
     public function close(Request $request, VendorRefill $refill, CloseVendorRefill $a)

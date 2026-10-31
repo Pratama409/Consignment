@@ -79,6 +79,12 @@ Tetap disalin dengan sengaja sebagai snapshot saat kejadian: kode/nama/jendela
 `vendor_refill_receipts.vendor_refill_id` dan `vendor_do_number` (penerimaan
 boleh tanpa shipment).
 
+Follow Up Vendor Refill (`vendor_refill_follow_ups`): saat refill berstatus
+`PARTIAL`, Admin atau Warehouse dapat meminta tindak lanjut (maksimal satu yang
+terbuka). Vendor pemilik melihat penanda "Perlu ditindaklanjuti" dan jumlahnya di
+menu Vendor Refill, lalu menandainya dibaca; mengirim sisa barang juga menandainya
+dibaca otomatis.
+
 Stock Opname membandingkan hitungan fisik dengan stok sistem
 (`stock_opname_sessions`, `stock_opname_lines`). Baris merujuk `stock_bucket_id`;
 selisih (`counted_quantity - system_quantity`) dan status `BALANCE`/`SHORT`/`OVER`

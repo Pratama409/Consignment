@@ -40,6 +40,8 @@ class CreateRefillShipment
                 $shipment->lines()->create(['vendor_refill_line_id' => $input['refill_line_id'], 'shipped_quantity' => $input['quantity']]);
             }
             $locked->update(['status' => 'SHIPPING']);
+            // Shipping the remainder answers any follow-up that was waiting for the Vendor.
+            $locked->followUps()->whereNull('acknowledged_at')->update(['acknowledged_by' => $vendorUser->id, 'acknowledged_at' => now()]);
 
             return $shipment->load('lines');
         });
