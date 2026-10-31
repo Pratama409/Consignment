@@ -39,6 +39,16 @@ class CreateStockOpnameSession
         }
 
         return DB::transaction(function () use ($admin, $scope, $cycleMonth, $bucketIds, $data): StockOpnameSession {
+            // Creators sharing a bucket serialize here, so two sessions can never both claim it.
+            StockBucket::whereIn('id', $bucketIds)->orderBy('id')->lockForUpdate()->get();
+            $taken = DB::table('stock_opname_lines as l')
+                ->join('stock_opname_sessions as s', 's.id', '=', 'l.stock_opname_session_id')
+                ->whereIn('l.stock_bucket_id', $bucketIds)
+                ->whereIn('s.status', collect(StockOpnameStatus::cases())->filter->isOpen()->map->value->all())
+                ->lockForUpdate()->distinct()->pluck('s.session_no');
+            if ($taken->isNotEmpty()) {
+                throw ValidationException::withMessages(['bucket_ids' => 'Posisi stok sudah ada di sesi Stock Opname yang masih terbuka: '.$taken->implode(', ').'.']);
+            }
             $prefix = 'SO-'.now()->format('Ymd').'-';
             $sequence = StockOpnameSession::where('session_no', 'like', $prefix.'%')->lockForUpdate()->count() + 1;
             $note = trim((string) ($data['note'] ?? ''));

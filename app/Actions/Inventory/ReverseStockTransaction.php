@@ -5,12 +5,14 @@ namespace App\Actions\Inventory;
 use App\Actions\Audit\WriteAuditLog;
 use App\Actions\Shifts\ResolveOperationalShift;
 use App\Enums\InventoryPeriodStatus;
+use App\Enums\StockOpnameStatus;
 use App\Enums\StockTransactionStatus;
 use App\Enums\StockTransactionType;
 use App\Events\StockTransactionReversed;
 use App\Models\InventoryPeriod;
 use App\Models\StockBalance;
 use App\Models\StockLot;
+use App\Models\StockOpnameLine;
 use App\Models\StockTransaction;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -35,6 +37,12 @@ class ReverseStockTransaction
             }
             if ($record->status !== StockTransactionStatus::Posted || $record->type === StockTransactionType::Reversal) {
                 throw ValidationException::withMessages(['reversal' => 'Hanya transaksi POSTED non-reversal yang dapat dibalik.']);
+            }
+
+            $belongsToOpenOpname = StockOpnameLine::whereHas('adjustment', fn ($adjustment) => $adjustment->where('stock_transaction_id', $record->id))
+                ->whereHas('session', fn ($session) => $session->whereIn('status', collect(StockOpnameStatus::cases())->filter->isOpen()->map->value->all()))->exists();
+            if ($belongsToOpenOpname) {
+                throw ValidationException::withMessages(['reversal' => 'Koreksi ini bagian dari Stock Opname yang masih terbuka dan tidak dapat dibalik.']);
             }
 
             $postedAt = CarbonImmutable::now('UTC');

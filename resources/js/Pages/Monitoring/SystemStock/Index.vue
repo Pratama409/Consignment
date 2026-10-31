@@ -33,7 +33,7 @@ defineProps({ rows: Object, filters: Object });
                             <td>{{ row.ownership }}</td>
                             <td>{{ row.vendor }}</td>
                             <td>{{ row.location }}</td>
-                            <td>{{ row.quantity }} {{ row.unit }}</td>
+                            <td><span v-if="row.counting">Sedang dihitung</span><template v-else>{{ row.quantity }} {{ row.unit }}</template></td>
                             <td>
                                 <Link
                                     :href="`/monitoring/system-stock/${row.id}`"

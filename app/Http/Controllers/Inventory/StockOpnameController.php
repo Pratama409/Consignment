@@ -68,6 +68,7 @@ class StockOpnameController extends Controller
         $isAdmin = $user->isAdmin();
         $session->load(['creator', 'counter', 'approver', 'lines.bucket' => fn ($query) => $query->with(StockBucket::IDENTITY), 'lines.adjustment', 'lines.session']);
         $status = $session->status;
+        $moves = $isAdmin ? $log->forSession($session) : collect();
 
         return Inertia::render('Inventory/Opname/Show', [
             'session' => [
@@ -80,9 +81,10 @@ class StockOpnameController extends Controller
                 'id' => $line->id, 'item' => $this->itemLabel($line->bucket), 'vendor' => $line->bucket->vendorItem?->vendor?->vendor_name,
                 'location' => $line->bucket->location->location_code, 'unit' => $line->bucket->resolvedItem()?->unit?->name,
                 'counted_quantity' => $line->counted_quantity, 'count_url' => route('stock-opname.count', [$session, $line]),
+                'can_count' => $user->isWarehouse() && $status === StockOpnameStatus::Counting && ($line->system_quantity === null || $line->counted_quantity === null),
                 ...($isAdmin ? [
                     'system_quantity' => $line->system_quantity, 'difference' => $line->difference(), 'state' => $line->state(),
-                    'adjustment_status' => $line->adjustment?->status->value, 'movements' => $log->forLine($line),
+                    'adjustment_status' => $line->adjustment?->status->value, 'movements' => $moves->get($line->id, collect()),
                     'recount_url' => $status === StockOpnameStatus::Resolving && $line->adjustment?->status === StockAdjustmentStatus::Rejected ? route('stock-opname.recount', [$session, $line]) : null,
                 ] : []),
             ])->values(),
@@ -104,6 +106,7 @@ class StockOpnameController extends Controller
     {
         abort_unless($request->user()->isAdmin(), 403);
         $session->load(['creator', 'counter', 'approver', 'lines.bucket' => fn ($query) => $query->with(StockBucket::IDENTITY), 'lines.session']);
+        $moves = $log->forSession($session);
         $person = fn ($user) => $user === null ? null : ['name' => $user->name, 'position' => $user->position];
 
         return Inertia::render('Inventory/Opname/Report', [
@@ -116,7 +119,7 @@ class StockOpnameController extends Controller
             'lines' => $session->lines->map(fn (StockOpnameLine $line) => [
                 'item' => $this->itemLabel($line->bucket), 'vendor' => $line->bucket->vendorItem?->vendor?->vendor_name, 'location' => $line->bucket->location->location_code,
                 'system_quantity' => $line->system_quantity, 'counted_quantity' => $line->counted_quantity, 'difference' => $line->difference(), 'state' => $line->state(),
-                'movements' => $log->forLine($line),
+                'movements' => $moves->get($line->id, collect()),
             ])->values(),
             'back_url' => route('stock-opname.show', $session),
             'printed_at' => now()->timezone('Asia/Makassar')->format('d/m/Y H:i'),

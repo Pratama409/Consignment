@@ -30,8 +30,12 @@ class RecordOpnameCount
                 throw ValidationException::withMessages(['session' => 'Hasil hitung hanya dapat diubah saat sesi berstatus COUNTING.']);
             }
             $record = StockOpnameLine::whereKey($line->id)->lockForUpdate()->firstOrFail();
+            if ($record->system_quantity !== null && $record->counted_quantity !== null) {
+                throw ValidationException::withMessages(['line' => 'Hitungan baris ini sudah dikirim dan tidak dapat diubah kecuali dibuka untuk hitung ulang.']);
+            }
             $before = $record->toArray();
-            $record->update(['counted_quantity' => bcadd($quantity, '0', 4), 'counted_by' => $warehouse->id, 'counted_at' => now()]);
+            // counted_at marks the first count of the round, so the movement log still covers a re-saved count.
+            $record->update(['counted_quantity' => bcadd($quantity, '0', 4), 'counted_by' => $warehouse->id, 'counted_at' => $record->counted_at ?? now()]);
             $this->audit->handle($warehouse, 'stock_opname.counted', $record, $before, $record->fresh()->toArray());
 
             return $record->fresh();

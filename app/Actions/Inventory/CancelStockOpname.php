@@ -25,6 +25,9 @@ class CancelStockOpname
             if (! in_array($record->status, [StockOpnameStatus::Counting, StockOpnameStatus::Counted], true)) {
                 throw ValidationException::withMessages(['session' => 'Sesi hanya dapat dibatalkan saat COUNTING atau COUNTED.']);
             }
+            if ($record->lines()->whereNotNull('stock_adjustment_id')->exists()) {
+                throw ValidationException::withMessages(['session' => 'Sesi tidak dapat dibatalkan karena sudah memiliki Koreksi Stok.']);
+            }
             $before = $record->toArray();
             $record->update(['status' => StockOpnameStatus::Cancelled]);
             $this->audit->handle($admin, 'stock_opname.cancelled', $record, $before, $record->fresh()->toArray(), trim($reason));

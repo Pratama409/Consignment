@@ -160,7 +160,7 @@ class StockOpnameWebTest extends TestCase
     public function test_a_line_from_another_session_is_not_found(): void
     {
         $session = $this->newSession();
-        $other = $this->newSession();
+        $other = $this->newSession($this->anotherBucket());
 
         $this->actingAs($this->warehouse)->put(route('stock-opname.count', [$session, $other->lines()->firstOrFail()]), ['quantity' => '1'])->assertNotFound();
     }
@@ -172,7 +172,10 @@ class StockOpnameWebTest extends TestCase
         $this->actingAs($this->admin)->post(route('stock-opname.approve', $session))->assertSessionHasNoErrors();
         $this->assertSame(StockOpnameStatus::Resolving, $session->fresh()->status);
 
-        $second = $this->countedSession('300');
+        $secondBucket = $this->anotherBucket();
+        $second = $this->newSession($secondBucket);
+        app(RecordOpnameCount::class)->handle($second->lines()->firstOrFail(), '1', $this->warehouse);
+        app(SubmitOpnameCount::class)->handle($second, $this->warehouse);
         $this->actingAs($this->admin)->post(route('stock-opname.cancel', $second), ['reason' => ''])->assertSessionHasErrors();
         $this->actingAs($this->admin)->post(route('stock-opname.cancel', $second), ['reason' => 'Salah cakupan'])->assertSessionHasNoErrors();
         $this->assertSame(StockOpnameStatus::Cancelled, $second->fresh()->status);
@@ -188,9 +191,18 @@ class StockOpnameWebTest extends TestCase
         }
     }
 
-    private function newSession(): StockOpnameSession
+    private function newSession(?StockBucket $bucket = null): StockOpnameSession
     {
-        return app(CreateStockOpnameSession::class)->handle(['scope_type' => 'PARTIAL', 'bucket_ids' => [$this->bucket->id]], $this->admin);
+        return app(CreateStockOpnameSession::class)->handle(['scope_type' => 'PARTIAL', 'bucket_ids' => [($bucket ?? $this->bucket)->id]], $this->admin);
+    }
+
+    /** A second stocked position, because a bucket may be in only one open session at a time. */
+    private function anotherBucket(): StockBucket
+    {
+        $item = Item::create(['item_code' => 'WEB-'.Str::random(6), 'part_number' => 'PN-WEB2', 'item_name' => 'Second web item', 'ownership_type' => 'STOCK', 'tracking_type' => 'QUANTITY', 'unit_id' => Unit::firstOrFail()->id, 'minimum_stock' => '0.0000']);
+        StockItemLocation::create(['item_id' => $item->id, 'location_id' => $this->location->id]);
+
+        return $this->bucketFor($item, null, $this->location);
     }
 
     private function countedSession(string $counted): StockOpnameSession

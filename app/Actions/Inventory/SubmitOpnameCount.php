@@ -5,6 +5,7 @@ namespace App\Actions\Inventory;
 use App\Actions\Audit\WriteAuditLog;
 use App\Enums\StockOpnameStatus;
 use App\Models\StockBalance;
+use App\Models\StockOpnameLine;
 use App\Models\StockOpnameSession;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,11 @@ class SubmitOpnameCount
         }
 
         return DB::transaction(function () use ($session, $warehouse): StockOpnameSession {
+            // Balances first, in a fixed order: a posting locks the balance and then the freeze rows, so locking
+            // session and lines first would let the two wait on each other.
+            foreach (StockOpnameLine::where('stock_opname_session_id', $session->id)->orderBy('stock_bucket_id')->pluck('stock_bucket_id') as $bucketId) {
+                StockBalance::where('stock_bucket_id', $bucketId)->lockForUpdate()->first();
+            }
             $record = StockOpnameSession::whereKey($session->id)->lockForUpdate()->firstOrFail();
             if ($record->status !== StockOpnameStatus::Counting) {
                 throw ValidationException::withMessages(['session' => 'Hanya sesi COUNTING yang dapat dikirim.']);
@@ -41,6 +47,6 @@ class SubmitOpnameCount
             $this->audit->handle($warehouse, 'stock_opname.submitted', $record, $before, $record->fresh()->toArray());
 
             return $record->fresh();
-        });
+        }, 3);
     }
 }

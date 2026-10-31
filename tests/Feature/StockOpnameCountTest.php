@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Inventory\CancelStockOpname;
 use App\Actions\Inventory\CreateStockOpnameSession;
 use App\Actions\Inventory\PostStockIn;
 use App\Actions\Inventory\RecordOpnameCount;
@@ -70,7 +71,8 @@ class StockOpnameCountTest extends TestCase
         $this->assertSame(StockOpnameStatus::Counting, $session->status);
         $this->assertMatchesRegularExpression('/^SO-20261029-001$/', $session->session_no);
         $this->assertSame([$this->stockedBucket->id], $session->lines()->pluck('stock_bucket_id')->all());
-        $this->assertTrue(app(CreateStockOpnameSession::class)->handle(['scope_type' => 'FULL'], $this->admin)->session_no === 'SO-20261029-002');
+        app(CancelStockOpname::class)->handle($session, $this->admin, 'Ganti cakupan');
+        $this->assertSame('SO-20261029-002', app(CreateStockOpnameSession::class)->handle(['scope_type' => 'FULL'], $this->admin)->session_no);
     }
 
     public function test_partial_session_uses_only_the_chosen_buckets(): void

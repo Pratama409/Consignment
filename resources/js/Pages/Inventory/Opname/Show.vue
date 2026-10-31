@@ -44,7 +44,7 @@ const recount = (line) => router.post(line.recount_url, {}, { preserveScroll: tr
                             <tr>
                                 <td>{{ line.item }}</td><td>{{ line.vendor || "Stok internal" }}</td><td>{{ line.location }}</td>
                                 <td>
-                                    <form v-if="can.count" class="inline-count" @submit.prevent="save(line)">
+                                    <form v-if="line.can_count" class="inline-count" @submit.prevent="save(line)">
                                         <input v-model="draft[line.id]" class="form-input" type="number" min="0" step="0.0001" inputmode="decimal" :aria-label="`Hitung ${line.item}`" required />
                                         <button type="submit" class="button button--secondary">Simpan</button>
                                     </form>
