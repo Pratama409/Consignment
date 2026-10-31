@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Actions\Inventory\CreateStockOpnameSession;
 use App\Actions\MaterialRequests\ApproveMaterialRequest;
 use App\Actions\MaterialRequests\CreateMaterialIssue;
 use App\Actions\MaterialRequests\CreateMaterialRequest;
@@ -47,8 +48,8 @@ class DemoDataSeeder extends Seeder
             return;
         }
 
-        $admin = $this->user('Admin Demo', 'admin@demo.test', UserRole::Admin);
-        $warehouse = $this->user('Warehouse Demo', 'warehouse@demo.test', UserRole::Warehouse);
+        $admin = $this->user('Admin Demo', 'admin@demo.test', UserRole::Admin, null, 'General Leader');
+        $warehouse = $this->user('Warehouse Demo', 'warehouse@demo.test', UserRole::Warehouse, null, 'Staf Warehouse');
 
         $unit = Unit::where('code', 'PC')->firstOrFail();
         $apd = Category::create(['code' => 'APD', 'name' => 'Alat Pelindung Diri']);
@@ -97,12 +98,15 @@ class DemoDataSeeder extends Seeder
             ['line_id' => $lines->firstWhere('item_id', $gloves->id)->id, 'vendor_item_id' => $swiGloves->id, 'location_id' => $rackA->id, 'quantity' => 3, 'is_backcharge' => true],
             ['line_id' => $lines->firstWhere('item_id', $glue->id)->id, 'quantity' => 2],
         ], 'demo-material-issue', 'WO-DEMO-001');
+
+        // An open session with nothing counted yet, so a demo can start counting as Warehouse.
+        app(CreateStockOpnameSession::class)->handle(['scope_type' => 'FULL', 'note' => 'Sesi demo Stock Opname'], $admin);
     }
 
-    private function user(string $name, string $email, UserRole $role, ?Vendor $vendor = null): User
+    private function user(string $name, string $email, UserRole $role, ?Vendor $vendor = null, ?string $position = null): User
     {
         $user = new User(['name' => $name, 'email' => $email, 'password' => self::PASSWORD]);
-        $user->forceFill(['role' => $role, 'vendor_id' => $vendor?->id])->save();
+        $user->forceFill(['role' => $role, 'vendor_id' => $vendor?->id, 'position' => $position])->save();
 
         return $user;
     }

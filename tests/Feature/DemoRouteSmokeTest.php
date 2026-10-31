@@ -7,6 +7,7 @@ use App\Models\MaterialRequest;
 use App\Models\OpeningBalanceBatch;
 use App\Models\OperationalShift;
 use App\Models\StockBalance;
+use App\Models\StockOpnameSession;
 use App\Models\User;
 use App\Models\VendorRefill;
 use Database\Seeders\DemoDataSeeder;
@@ -58,6 +59,10 @@ class DemoRouteSmokeTest extends TestCase
             'opening-balances.show' => route('opening-balances.show', OpeningBalanceBatch::firstOrFail()),
             'stock-corrections.index' => route('stock-corrections.index'),
             'stock-corrections.create' => route('stock-corrections.create'),
+            'stock-opname.index' => route('stock-opname.index'),
+            'stock-opname.create' => route('stock-opname.create'),
+            'stock-opname.show' => route('stock-opname.show', StockOpnameSession::firstOrFail()),
+            'stock-opname.report' => route('stock-opname.report', StockOpnameSession::firstOrFail()),
             'shifts.index' => route('shifts.index'),
             'users.index' => route('users.index'),
         ];

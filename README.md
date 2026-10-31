@@ -31,6 +31,9 @@ secara eksplisit: `php artisan db:seed --class=DemoDataSeeder`. Akun demo
 (`admin@demo.test`, `warehouse@demo.test`, `vendor@demo.test`) memakai password
 `Demo-password-123`; jangan dipakai di luar lingkungan lokal.
 
+Data demo juga memuat satu sesi Stock Opname `FULL` yang masih berstatus
+`COUNTING` tanpa hitungan, supaya Warehouse dapat mulai menghitung saat demo.
+
 Jangan menjalankan migration pada database utama atau production tanpa backup,
 maintenance window, dan instruksi eksplisit. Pengujian MySQL harus memakai
 database `consignment_testing`; SQLite `:memory:` dipakai oleh test default.

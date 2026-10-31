@@ -79,6 +79,27 @@ Tetap disalin dengan sengaja sebagai snapshot saat kejadian: kode/nama/jendela
 `vendor_refill_receipts.vendor_refill_id` dan `vendor_do_number` (penerimaan
 boleh tanpa shipment).
 
+Stock Opname membandingkan hitungan fisik dengan stok sistem
+(`stock_opname_sessions`, `stock_opname_lines`). Baris merujuk `stock_bucket_id`;
+selisih (`counted_quantity - system_quantity`) dan status `BALANCE`/`SHORT`/`OVER`
+dihitung, tidak disimpan. `system_quantity` adalah snapshot saldo yang diambil saat
+Warehouse mengirim hasil hitung, dan tidak pernah dikirim ke Warehouse.
+
+- Admin (GL) membuat sesi (`FULL`, `PARTIAL`, atau `CYCLE` bulanan), menyetujui,
+  meminta hitung ulang, menutup, membatalkan, dan mencetak laporan.
+- Warehouse memasukkan dan mengirim hasil hitung tanpa melihat stok sistem.
+- Vendor tidak punya akses.
+- Bucket dengan selisih **dibekukan**: `PostStock` dan `ReverseStockTransaction`
+  menolak transaksi apa pun kecuali Koreksi Stok milik baris itu, sampai
+  diposting. Pemeriksaannya berupa locking read setelah kunci saldo, sehingga
+  hitungan yang dikirim bersamaan tidak bisa terlewat.
+- Menyetujui hasil membuat draft Koreksi Stok untuk setiap selisih
+  (`Selisih Stock Opname <nomor>`); Admin menyetujuinya di layar Koreksi Stok.
+  Koreksi yang ditolak mengembalikan baris itu ke hitung ulang dan bucket tetap
+  beku.
+- Perubahan stok setelah penghitungan dibaca dari ledger (tanpa tabel baru) dan
+  ditampilkan di layar persetujuan dan laporan.
+
 Data OUT mencatat Nomor WO opsional (`material_issues.work_order_no`, maksimal
 50 karakter) dan flag Backcharge per baris (`material_issue_lines.is_backcharge`).
 Keduanya hanya untuk pengguna internal; Vendor tidak menerimanya di rekap.
