@@ -21,7 +21,7 @@ class HandleInertiaRequests extends Middleware
             str_starts_with($routeName, 'monitoring.reconciliations') => 'monitoring-reconciliations',
             default => explode('.', $routeName)[0],
         };
-        $labels = ['home' => 'Dashboard', 'manual-data-in' => 'Data IN', 'procurement' => 'Pengadaan', 'monitoring-transactions' => 'Rekap Transaksi', 'monitoring-shifts' => 'Rekap Shift', 'monitoring-stock' => 'Stock Sistem', 'monitoring-reconciliations' => 'BA Rekonsiliasi', 'material-requests' => 'Data OUT', 'refills' => 'Vendor Refill', 'incoming-refills' => 'Incoming Refill', 'stock-corrections' => 'Koreksi Stok', 'opening-balances' => 'Saldo Awal', 'shifts' => 'Pengaturan Shift', 'users' => 'Manajemen Pengguna', 'items' => 'Barang', 'vendors' => 'Vendor', 'units' => 'Satuan', 'locations' => 'Lokasi', 'categories' => 'Kategori', 'departments' => 'Departemen', 'imports' => 'Import Master PN'];
+        $labels = ['home' => 'Dashboard', 'manual-data-in' => 'Data IN', 'procurement' => 'Pengadaan', 'monitoring-transactions' => 'Rekap Transaksi', 'monitoring-shifts' => 'Rekap Shift', 'monitoring-stock' => 'Stock Sistem', 'monitoring-reconciliations' => 'BA Rekonsiliasi', 'material-requests' => 'Data OUT', 'refills' => 'Vendor Refill', 'incoming-refills' => 'Incoming Refill', 'stock-corrections' => 'Koreksi Stok', 'stock-opname' => 'Stock Opname', 'opening-balances' => 'Saldo Awal', 'shifts' => 'Pengaturan Shift', 'users' => 'Manajemen Pengguna', 'items' => 'Barang', 'vendors' => 'Vendor', 'units' => 'Satuan', 'locations' => 'Lokasi', 'categories' => 'Kategori', 'departments' => 'Departemen', 'imports' => 'Import Master PN'];
 
         return [
             ...parent::share($request),
@@ -64,6 +64,7 @@ class HandleInertiaRequests extends Middleware
                 'shiftsIndex' => route('shifts.index'),
                 'openingBalancesIndex' => route('opening-balances.index'),
                 'stockCorrectionsIndex' => route('stock-corrections.index'),
+                'stockOpnameIndex' => route('stock-opname.index'),
                 'refillsIndex' => route('refills.index'),
                 'incomingRefillsIndex' => route('incoming-refills.index'),
                 'materialRequestsIndex' => route('material-requests.index'),

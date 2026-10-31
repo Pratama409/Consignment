@@ -927,6 +927,18 @@ input[type="checkbox"] {
     background: #f1f5f9;
     color: #475569;
 }
+.status-badge--warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+.status-badge--danger {
+    background: #fee2e2;
+    color: #991b1b;
+}
+.status-badge--info {
+    background: #dbeafe;
+    color: #1e40af;
+}
 .status-badge__dot {
     width: 5px;
     height: 5px;
@@ -2624,5 +2636,26 @@ html:has(dialog[open]) {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
+    }
+}
+
+.inline-count {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.inline-count .form-input {
+    min-width: 96px;
+    max-width: 140px;
+}
+.movement-log {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    color: #475569;
+    font-size: 13px;
+}
+@media (max-width: 640px) {
+    .inline-count {
+        flex-wrap: wrap;
     }
 }
