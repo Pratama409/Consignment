@@ -20,7 +20,7 @@ use Illuminate\Validation\ValidationException;
 
 class ReverseStockTransaction
 {
-    public function __construct(private ResolveOperationalShift $shifts, private WriteAuditLog $audit) {}
+    public function __construct(private ResolveOperationalShift $shifts, private WriteAuditLog $audit, private StockOpnameFreeze $freeze) {}
 
     public function handle(StockTransaction $original, User $admin, string $reason, string $idempotencyKey): StockTransaction
     {
@@ -62,6 +62,7 @@ class ReverseStockTransaction
 
             foreach ($record->ledgerEntries()->with(['lot', 'lotAllocations'])->orderBy('entry_sequence')->get() as $entry) {
                 $balance = StockBalance::where('stock_bucket_id', $entry->stock_bucket_id)->lockForUpdate()->firstOrFail();
+                $this->freeze->assertNotFrozen($entry->stock_bucket_id);
                 $quantity = $this->units($entry->quantity);
                 $reversedUnits = -$quantity;
                 $newBalance = $this->units($balance->quantity) + $reversedUnits;

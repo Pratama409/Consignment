@@ -30,7 +30,7 @@ use Illuminate\Validation\ValidationException;
 /** Shared atomic implementation for the two directional posting entry points. */
 class PostStock
 {
-    public function __construct(private ResolveStockBucket $buckets, private ResolveOperationalShift $shifts, private WriteAuditLog $audit) {}
+    public function __construct(private ResolveStockBucket $buckets, private ResolveOperationalShift $shifts, private WriteAuditLog $audit, private StockOpnameFreeze $freeze) {}
 
     public function handle(StockPostingData $data, StockDirection $direction, ?InventoryPeriod $openingPeriod = null): StockTransaction
     {
@@ -107,6 +107,7 @@ class PostStock
                     if (! $balance) {
                         $balance = StockBalance::create(['stock_bucket_id' => $bucket->id]);
                     }
+                    $this->freeze->assertNotFrozen($bucket->id, $data->type === StockTransactionType::Adjustment ? $data->sourceId : null);
                     $quantity = $this->units($line->quantity);
                     $remaining = $this->units($balance->quantity) + ($direction === StockDirection::In ? $quantity : -$quantity);
                     if ($remaining < 0) {
