@@ -11,7 +11,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class WorkbookExporter
 {
-    public function download(?Builder $query = null, bool $template = false)
+    public function download(?Builder $query = null, bool $template = false, ?string $vendorId = null)
     {
         $book = new Spreadsheet;
         $sheet = $book->getActiveSheet()->setTitle('Master PN');
@@ -20,7 +20,7 @@ class WorkbookExporter
         }
         $number = 2;
         if ($query) {
-            foreach ($query->with(['category', 'unit', 'vendorItems.vendor', 'vendorItems.location', 'stockItemLocations.location'])->lazy(200) as $item) {
+            foreach ($query->with(['category', 'unit', 'vendorItems' => fn ($query) => $query->when($vendorId, fn ($query) => $query->active()->where('vendor_id', $vendorId))->with(['vendor', 'location']), 'stockItemLocations.location'])->lazy(200) as $item) {
                 $relations = $item->ownership_type->value === 'CONSIGNMENT' ? $item->vendorItems : $item->stockItemLocations;
                 foreach ($relations->isEmpty() ? [null] : $relations as $relation) {
                     $values = [$item->item_code, $item->ownership_type->value === 'STOCK' ? 'WAREHOUSE' : $relation?->vendor?->vendor_code,

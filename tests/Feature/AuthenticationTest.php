@@ -28,9 +28,12 @@ class AuthenticationTest extends TestCase
 
     public function test_valid_credentials_start_a_session_and_logout_invalidates_it(): void
     {
+        $this->travelTo(now()->startOfSecond());
         $user = User::factory()->create(['password' => Hash::make('Testing-password-123')]);
         $this->post('/login', ['email' => $user->email, 'password' => 'Testing-password-123'])->assertRedirect(route('items.index'));
         $this->assertAuthenticatedAs($user);
+        $this->assertNotNull($user->fresh()->last_login_at);
+        $this->assertTrue($user->fresh()->last_login_at->equalTo(now()));
         $this->post(route('logout'))->assertRedirect(route('login'));
         $this->assertGuest();
     }
@@ -40,6 +43,15 @@ class AuthenticationTest extends TestCase
         $user = User::factory()->create();
         $this->post('/login', ['email' => $user->email, 'password' => 'incorrect'])->assertSessionHasErrors('email');
         $this->assertGuest();
+    }
+
+    public function test_inactive_users_cannot_start_a_session_or_record_a_login(): void
+    {
+        $user = User::factory()->create();
+        $user->forceFill(['is_active' => false])->save();
+        $this->post('/login', ['email' => $user->email, 'password' => 'password'])->assertSessionHasErrors('email');
+        $this->assertGuest();
+        $this->assertNull($user->fresh()->last_login_at);
     }
 
     public function test_login_attempts_are_rate_limited(): void
@@ -53,7 +65,7 @@ class AuthenticationTest extends TestCase
     public function test_role_cannot_be_promoted_through_mass_assignment(): void
     {
         $user = User::create(['name' => 'Normal user', 'email' => 'normal@example.test', 'password' => 'Testing-password-123', 'role' => 'admin']);
-        $this->assertSame(UserRole::User, $user->fresh()->role);
+        $this->assertSame(UserRole::Warehouse, $user->fresh()->role);
     }
 
     public function test_admin_command_creates_an_admin_without_seeding_a_public_default_password(): void
@@ -66,6 +78,8 @@ class AuthenticationTest extends TestCase
             ->assertSuccessful();
         $user = User::where('email', 'admin@example.test')->firstOrFail();
         $this->assertSame(UserRole::Admin, $user->role);
+        $this->assertNull($user->vendor_id);
+        $this->assertTrue($user->is_active);
         $this->assertTrue(Hash::check('A-long-testing-password', $user->password));
     }
 }

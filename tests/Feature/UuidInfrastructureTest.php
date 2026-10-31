@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Database\Seeders\MasterDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
@@ -115,5 +116,31 @@ class UuidInfrastructureTest extends TestCase
         $this->assertTrue(Str::isUuid($batch->id));
         $this->assertSame(1, Bus::findBatch($batch->id)->totalJobs);
         $this->assertTrue(Str::isUuid(DB::table('jobs')->where('queue', 'uuid-batch-test')->value('id')));
+    }
+
+    public function test_inventory_foundation_foreign_keys_are_uuid_compatible(): void
+    {
+        foreach (['inventory_periods', 'stock_transactions', 'stock_buckets', 'stock_ledger_entries', 'stock_balances', 'stock_lots', 'stock_lot_allocations', 'opening_balance_batches', 'opening_balance_lines', 'stock_adjustments', 'audit_logs', 'shift_definitions', 'operational_shifts'] as $table) {
+            $columns = collect(Schema::getColumns($table));
+            foreach ($columns->filter(fn ($column) => str_ends_with($column['name'], '_id')) as $column) {
+                $this->assertContains($column['type_name'], ['char', 'varchar'], $table.'.'.$column['name']);
+            }
+        }
+    }
+
+    public function test_master_seeding_is_idempotent_and_never_creates_operational_demo_data(): void
+    {
+        $this->seed(MasterDataSeeder::class);
+        $counts = collect(['units', 'locations', 'shift_definitions'])->mapWithKeys(fn ($table) => [$table => DB::table($table)->count()]);
+        $this->seed(MasterDataSeeder::class);
+        foreach ($counts as $table => $count) {
+            $this->assertSame($count, DB::table($table)->count(), $table);
+        }
+        $this->assertDatabaseCount('users', 0);
+        $this->assertDatabaseCount('vendors', 0);
+        $this->assertDatabaseCount('items', 0);
+        $this->assertDatabaseCount('inventory_periods', 0);
+        $this->assertDatabaseCount('opening_balance_batches', 0);
+        $this->assertDatabaseCount('stock_transactions', 0);
     }
 }

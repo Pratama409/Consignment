@@ -32,7 +32,99 @@ Angka jumlah, nomor urut, dan timestamp tetap bertipe numerik.
 Ownership dikunci setelah dibuat. Minimum tidak negatif dan dapat diedit;
 nilainya berlaku sama untuk setiap Vendor dari barang tersebut. SERIALIZED
 dicadangkan di skema; alur penyimpanan v1 hanya menerima QUANTITY. QR dan
-transaksi stok belum dibuat.
+tracking serial masih ditunda. Fondasi transaksi quantity, opening balance,
+koreksi, dan reversal sudah tersedia.
+
+## Role, shift, dan inventory ledger
+
+Role operasional hanya `admin`, `warehouse`, dan `vendor`. User Vendor wajib
+memiliki `vendor_id`; satu Vendor dapat memiliki beberapa akun. Akun nonaktif
+kehilangan akses pada request berikutnya. Perubahan user dicatat dalam
+`audit_logs`.
+
+Jadwal default menggunakan WITA: DAY 06:00–18:00 dan NIGHT 18:00–06:00.
+`shift_definitions` menyimpan versi efektif, sedangkan `operational_shifts`
+menyimpan instance historis immutable. Waktu `posted_at` menentukan shift;
+tanggal fisik transaksi hanya menjadi referensi dan indikator late posting.
+
+Tabel inventory utama:
+
+- `inventory_periods`: status DRAFT, ACTIVE, atau CLOSED.
+- `stock_transactions`: header posting immutable dengan source dan idempotency key unik.
+- `stock_buckets`: satu baris per posisi stok, yaitu barang internal **atau**
+  pasangan barang–Vendor di satu lokasi. Tepat salah satu dari `item_id`
+  (STOCK) dan `vendor_item_id` (CONSIGNMENT) terisi, sehingga item bucket
+  consignment selalu dibaca lewat `vendor_items`. Unik per `(item_id,
+  location_id)` dan `(vendor_item_id, location_id)`; identitasnya immutable.
+- `stock_ledger_entries`: mutasi quantity bertanda; sumber kebenaran stok.
+- `stock_balances`: satu saldo per `stock_bucket_id`.
+- `stock_lots` dan `stock_lot_allocations`: penerimaan dan konsumsi FIFO.
+- `opening_balance_batches`/`opening_balance_lines`: preview saldo awal sebelum aktivasi.
+- `stock_adjustments`: draft, approval/rejection, dan hubungan ke transaksi posting.
+
+Ledger, saldo, lot, dan baris saldo awal hanya menyimpan `stock_bucket_id`;
+barang, Vendor, dan lokasi dibaca dari bucket. Fakta yang sama tidak disimpan
+dua kali di tabel baris lain: `procurement_requirements` mengambil Vendor,
+lokasi, dan quantity dari baris pengeluaran (`material_issue_lines`),
+`vendor_reconciliation_lines` mengambil item dari pasangan Vendor, sedangkan
+`manual_receipt_lines` dan `stock_adjustments` mengisi `item_id` hanya untuk
+barang STOCK (tepat satu dari `item_id`/`vendor_item_id`). Nomor dokumen
+Reservasi/PR/PO/GRGI disimpan sekali di `procurement_references` (unik per
+tahap dan nomor) dan dirujuk oleh `procurement_document_lines`.
+
+Tetap disalin dengan sengaja sebagai snapshot saat kejadian: kode/nama/jendela
+`operational_shifts`, `stock_transactions.operational_shift_id`, angka
+`vendor_reconciliation_lines`, data pemohon di `material_requests.applicant_*`
+(formulir publik, jadi tidak boleh ditimpa oleh pemohon lain), serta
+`vendor_refill_receipts.vendor_refill_id` dan `vendor_do_number` (penerimaan
+boleh tanpa shipment).
+
+Follow Up Vendor Refill (`vendor_refill_follow_ups`): saat refill berstatus
+`PARTIAL`, Admin atau Warehouse dapat meminta tindak lanjut (maksimal satu yang
+terbuka). Vendor pemilik melihat penanda "Perlu ditindaklanjuti" dan jumlahnya di
+menu Vendor Refill, lalu menandainya dibaca; mengirim sisa barang juga menandainya
+dibaca otomatis.
+
+Stock Opname membandingkan hitungan fisik dengan stok sistem
+(`stock_opname_sessions`, `stock_opname_lines`). Baris merujuk `stock_bucket_id`;
+selisih (`counted_quantity - system_quantity`) dan status `BALANCE`/`SHORT`/`OVER`
+dihitung, tidak disimpan. `system_quantity` adalah snapshot saldo yang diambil saat
+Warehouse mengirim hasil hitung, dan tidak pernah dikirim ke Warehouse.
+
+- Admin (GL) membuat sesi (`FULL`, `PARTIAL`, atau `CYCLE` bulanan), menyetujui,
+  meminta hitung ulang, menutup, membatalkan, dan mencetak laporan.
+- Warehouse memasukkan dan mengirim hasil hitung tanpa melihat stok sistem.
+- Vendor tidak punya akses.
+- Bucket dengan selisih **dibekukan**: `PostStock` dan `ReverseStockTransaction`
+  menolak transaksi apa pun kecuali Koreksi Stok milik baris itu, sampai
+  diposting. Pemeriksaannya berupa locking read setelah kunci saldo, sehingga
+  hitungan yang dikirim bersamaan tidak bisa terlewat.
+- Menyetujui hasil membuat draft Koreksi Stok untuk setiap selisih
+  (`Selisih Stock Opname <nomor>`); Admin menyetujuinya di layar Koreksi Stok.
+  Koreksi yang ditolak mengembalikan baris itu ke hitung ulang dan bucket tetap
+  beku.
+- Perubahan stok setelah penghitungan dibaca dari ledger (tanpa tabel baru) dan
+  ditampilkan di layar persetujuan dan laporan.
+
+Data OUT mencatat Nomor WO opsional (`material_issues.work_order_no`, maksimal
+50 karakter) dan flag Backcharge per baris (`material_issue_lines.is_backcharge`).
+Keduanya hanya untuk pengguna internal; Vendor tidak menerimanya di rekap.
+
+Quantity
+didukung dari `0.0001` sampai `9999999999.9999` dengan empat angka desimal.
+Ledger yang sudah POSTED tidak boleh diubah atau dihapus. Koreksi menghasilkan
+posting baru; reversal menghasilkan entry berlawanan dan mempertahankan link ke
+transaksi asal.
+
+Opening balance wajib melalui upload/preview dan hanya Admin yang dapat
+mengaktifkan. Aktivasi memposting semua bucket satu kali dan mengubah periodenya
+menjadi ACTIVE secara atomik. Preview, batch yang ditolak, atau draft koreksi
+tidak mengubah stok.
+
+Migration database aplikasi utama memerlukan instruksi eksplisit, backup, dan
+maintenance window. Test MySQL hanya boleh memakai database terisolasi
+`consignment_testing`; batas pemulihan konversi UUID tetap bergantung pada
+snapshot terenkripsi dan APP_KEY yang sama.
 
 ## Batas constraint database dan aturan aplikasi
 

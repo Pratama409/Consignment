@@ -20,7 +20,8 @@ class ReferenceController extends Controller
         $model = $definition['model'];
         $input = $request->validated();
         $filters = ['q' => trim($input['q'] ?? ''), 'status' => $input['status'] ?? 'all', 'sort' => $input['sort'] ?? 'code', 'direction' => $input['direction'] ?? 'asc', 'per_page' => (int) ($input['per_page'] ?? 10)];
-        $query = $model::query();
+        $vendorId = $request->user()->isVendor() ? $request->user()->vendor_id : null;
+        $query = $model::query()->when($vendorId, fn ($query) => $query->whereKey($vendorId));
         foreach ($definition['usage_relations'] as $index => $relation) {
             $query->withCount([$relation.' as usage_count_'.$index => fn ($query) => $query->active()]);
         }
@@ -41,8 +42,8 @@ class ReferenceController extends Controller
             'usage_count' => array_sum(array_map(fn ($index) => (int) $record->{'usage_count_'.$index}, array_keys($definition['usage_relations']))),
             'can_update' => $request->user()->can('update', $record), 'update_url' => route($resource.'.update', $record->id), 'status_url' => route($resource.'.status', $record->id),
         ]);
-        $total = $model::count();
-        $active = $model::active()->count();
+        $total = $model::when($vendorId, fn ($query) => $query->whereKey($vendorId))->count();
+        $active = $model::active()->when($vendorId, fn ($query) => $query->whereKey($vendorId))->count();
 
         return Inertia::render('MasterData/References/Index', [
             'resource' => $resource, 'records' => $records, 'filters' => $filters,

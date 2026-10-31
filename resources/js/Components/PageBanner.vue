@@ -14,6 +14,7 @@ defineProps({
             <p class="page-banner__eyebrow">CONSIGNMENT CONTROL CENTER</p>
             <h1 id="page-title" tabindex="-1">{{ title }}</h1>
             <p class="page-banner__description">{{ description }}</p>
+            <div v-if="$slots.chips" class="chip-row"><slot name="chips" /></div>
         </div>
         <div class="page-banner__emblem" aria-hidden="true">
             <AppIcon :name="icon" />

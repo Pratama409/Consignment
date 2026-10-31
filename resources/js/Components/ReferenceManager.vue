@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, ref } from "vue";
-import { Head, useForm, usePage } from "@inertiajs/vue3";
+import { Head, Link, useForm, usePage } from "@inertiajs/vue3";
 import {
     useListFilters,
     withCurrentQuery,
@@ -181,6 +181,12 @@ function changeStatus() {
                     />
                 </div>
                 <div class="toolbar-actions">
+                    <Link
+                        v-if="definition.key === 'vendors' && can.create"
+                        :href="page.props.routes.vendorsImport"
+                        class="button button--secondary"
+                        ><AppIcon name="upload" /> Import Vendor & PIC</Link
+                    >
                     <div class="status-filter">
                         <label for="reference-status" class="sr-only"
                             >Filter status {{ definition.lower }}</label
