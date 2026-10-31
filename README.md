@@ -23,6 +23,14 @@ command history:
 php artisan app:create-admin
 ```
 
+Data demo (Vendor, barang, saldo awal, refill parsial, dan satu Data OUT dengan
+Nomor WO serta Backcharge) tersedia lewat `DemoDataSeeder`. Seeder ini memakai
+action aplikasi yang sama, menolak berjalan di production, dan otomatis dipanggil
+oleh `php artisan migrate --seed` hanya pada `APP_ENV=local`. Untuk menjalankannya
+secara eksplisit: `php artisan db:seed --class=DemoDataSeeder`. Akun demo
+(`admin@demo.test`, `warehouse@demo.test`, `vendor@demo.test`) memakai password
+`Demo-password-123`; jangan dipakai di luar lingkungan lokal.
+
 Jangan menjalankan migration pada database utama atau production tanpa backup,
 maintenance window, dan instruksi eksplisit. Pengujian MySQL harus memakai
 database `consignment_testing`; SQLite `:memory:` dipakai oleh test default.

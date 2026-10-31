@@ -51,14 +51,39 @@ Tabel inventory utama:
 
 - `inventory_periods`: status DRAFT, ACTIVE, atau CLOSED.
 - `stock_transactions`: header posting immutable dengan source dan idempotency key unik.
+- `stock_buckets`: satu baris per posisi stok, yaitu barang internal **atau**
+  pasangan barang–Vendor di satu lokasi. Tepat salah satu dari `item_id`
+  (STOCK) dan `vendor_item_id` (CONSIGNMENT) terisi, sehingga item bucket
+  consignment selalu dibaca lewat `vendor_items`. Unik per `(item_id,
+  location_id)` dan `(vendor_item_id, location_id)`; identitasnya immutable.
 - `stock_ledger_entries`: mutasi quantity bertanda; sumber kebenaran stok.
-- `stock_balances`: satu saldo per `bucket_key` non-null.
+- `stock_balances`: satu saldo per `stock_bucket_id`.
 - `stock_lots` dan `stock_lot_allocations`: penerimaan dan konsumsi FIFO.
 - `opening_balance_batches`/`opening_balance_lines`: preview saldo awal sebelum aktivasi.
 - `stock_adjustments`: draft, approval/rejection, dan hubungan ke transaksi posting.
 
-Bucket internal berbentuk `STOCK:{item_uuid}:{location_uuid}`. Bucket milik
-Vendor berbentuk `CONSIGNMENT:{vendor_item_uuid}:{location_uuid}`. Quantity
+Ledger, saldo, lot, dan baris saldo awal hanya menyimpan `stock_bucket_id`;
+barang, Vendor, dan lokasi dibaca dari bucket. Fakta yang sama tidak disimpan
+dua kali di tabel baris lain: `procurement_requirements` mengambil Vendor,
+lokasi, dan quantity dari baris pengeluaran (`material_issue_lines`),
+`vendor_reconciliation_lines` mengambil item dari pasangan Vendor, sedangkan
+`manual_receipt_lines` dan `stock_adjustments` mengisi `item_id` hanya untuk
+barang STOCK (tepat satu dari `item_id`/`vendor_item_id`). Nomor dokumen
+Reservasi/PR/PO/GRGI disimpan sekali di `procurement_references` (unik per
+tahap dan nomor) dan dirujuk oleh `procurement_document_lines`.
+
+Tetap disalin dengan sengaja sebagai snapshot saat kejadian: kode/nama/jendela
+`operational_shifts`, `stock_transactions.operational_shift_id`, angka
+`vendor_reconciliation_lines`, data pemohon di `material_requests.applicant_*`
+(formulir publik, jadi tidak boleh ditimpa oleh pemohon lain), serta
+`vendor_refill_receipts.vendor_refill_id` dan `vendor_do_number` (penerimaan
+boleh tanpa shipment).
+
+Data OUT mencatat Nomor WO opsional (`material_issues.work_order_no`, maksimal
+50 karakter) dan flag Backcharge per baris (`material_issue_lines.is_backcharge`).
+Keduanya hanya untuk pengguna internal; Vendor tidak menerimanya di rekap.
+
+Quantity
 didukung dari `0.0001` sampai `9999999999.9999` dengan empat angka desimal.
 Ledger yang sudah POSTED tidak boleh diubah atau dihapus. Koreksi menghasilkan
 posting baru; reversal menghasilkan entry berlawanan dan mempertahankan link ke
