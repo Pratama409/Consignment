@@ -26,7 +26,7 @@ test("Warehouse creates a correction draft and Admin rejects it with visible sco
         await admin.getByRole("link", { name: "Koreksi Stok", exact: true }).click();
         admin.once("dialog", (dialog) => dialog.accept("Bukti tidak sesuai"));
         await admin.getByRole("row").filter({ hasText: "Selisih hitung browser" }).getByRole("button", { name: "Tolak" }).click();
-        await expect(admin.getByRole("row").filter({ hasText: "Selisih hitung browser" })).toContainText("REJECTED");
+        await expect(admin.getByRole("row").filter({ hasText: "Selisih hitung browser" })).toContainText(/rejected/i);
         await expect(admin.getByPlaceholder("Cari nomor transaksi")).toBeVisible();
     } finally {
         await adminContext.close();

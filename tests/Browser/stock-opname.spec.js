@@ -50,7 +50,7 @@ test("Admin opens a session, Warehouse counts blind, Admin resolves the differen
     await draft.getByRole("button", { name: "Setujui" }).click();
     page.once("dialog", (dialog) => dialog.accept());
     await draft.getByRole("button", { name: "Posting" }).click();
-    await expect(draft).toContainText("POSTED");
+    await expect(draft).toContainText(/diposting/i);
 
     await page.goto(sessionUrl);
     await page.getByRole("button", { name: "Tutup sesi" }).click();

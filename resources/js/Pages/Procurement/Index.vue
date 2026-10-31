@@ -4,6 +4,7 @@ import { Head, Link, router, useForm } from "@inertiajs/vue3";
 import AppLayout from "../../Layouts/AppLayout.vue";
 import PageBanner from "../../Components/PageBanner.vue";
 import Pagination from "../../Components/Pagination.vue";
+import StatusPill from "../../Components/ui/StatusPill.vue";
 defineOptions({ layout: AppLayout });
 const props = defineProps({ requirements: Object, role: String, urls: Object });
 const upload = useForm({ stage: "PR", file: null });
@@ -121,9 +122,7 @@ const storeDocument = (row) =>
                                 }}</strong>
                             </td>
                             <td>
-                                <span class="status-pill">{{
-                                    row.status
-                                }}</span>
+                                <StatusPill :status="row.status" />
                             </td>
                             <td>
                                 <div
