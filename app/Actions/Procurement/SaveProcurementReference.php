@@ -2,6 +2,7 @@
 
 namespace App\Actions\Procurement;
 
+use App\Models\ProcurementReference;
 use App\Models\ProcurementRequirement;
 use App\Support\WholeQuantity;
 use Illuminate\Support\Facades\DB;
@@ -42,7 +43,7 @@ class SaveProcurementReference
             $version = (int) $locked->documentLines()->where('stage', $stage)->max('version') + 1;
             $locked->documentLines()->where('stage', $stage)->update(['is_active' => false]);
             foreach ($lines as $i => $line) {
-                $locked->documentLines()->create(['stage' => $stage, 'version' => $version, 'line_no' => $i + 1, 'document_no' => $line['document_no'], 'covered_quantity' => $line['quantity'], 'is_active' => true]);
+                $locked->documentLines()->create(['stage' => $stage, 'version' => $version, 'line_no' => $i + 1, 'procurement_reference_id' => ProcurementReference::firstOrCreate(['stage' => $stage, 'document_no' => trim($line['document_no'])])->id, 'covered_quantity' => $line['quantity'], 'is_active' => true]);
             }$locked->update(['status' => $stage === 'RESERVATION' ? 'PR_PENDING' : ($stage === 'PR' ? 'VALIDATION_PENDING' : ($stage === 'GRGI' && $total === $locked->requiredQuantity() ? 'COMPLETE' : $locked->status))]);
 
             return $locked->fresh('documentLines');

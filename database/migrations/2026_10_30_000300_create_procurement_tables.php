@@ -16,13 +16,21 @@ return new class extends Migration
             $t->enum('status', ['RESERVATION_PENDING', 'PR_PENDING', 'VALIDATION_PENDING', 'PO_PENDING', 'COMPLETE', 'REQUIRES_REVIEW', 'VOID'])->default('RESERVATION_PENDING')->index();
             $t->timestamps();
         });
+        // One header per SAP document number and stage; many requirements may cite the same document.
+        Schema::create('procurement_references', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->enum('stage', ['RESERVATION', 'PR', 'PO', 'GRGI']);
+            $t->string('document_no', 100);
+            $t->timestamps();
+            $t->unique(['stage', 'document_no']);
+        });
         Schema::create('procurement_document_lines', function (Blueprint $t) {
             $t->uuid('id')->primary();
             $t->foreignUuid('procurement_requirement_id')->constrained()->restrictOnDelete();
             $t->enum('stage', ['RESERVATION', 'PR', 'PO', 'GRGI']);
             $t->unsignedInteger('version');
             $t->unsignedInteger('line_no');
-            $t->string('document_no', 100);
+            $t->foreignUuid('procurement_reference_id')->constrained()->restrictOnDelete();
             $t->decimal('covered_quantity', 18, 4);
             $t->boolean('is_active')->default(true);
             $t->timestamps();
@@ -76,7 +84,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        foreach (['procurement_documents', 'procurement_validations', 'procurement_import_rows', 'procurement_import_batches', 'procurement_document_lines', 'procurement_requirements'] as $t) {
+        foreach (['procurement_documents', 'procurement_validations', 'procurement_import_rows', 'procurement_import_batches', 'procurement_document_lines', 'procurement_references', 'procurement_requirements'] as $t) {
             Schema::dropIfExists($t);
         }
     }

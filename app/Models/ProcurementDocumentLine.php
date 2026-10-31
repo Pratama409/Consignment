@@ -12,6 +12,18 @@ class ProcurementDocumentLine extends Model
 
     protected $guarded = [];
 
+    protected $appends = ['document_no'];
+
+    public function reference(): BelongsTo
+    {
+        return $this->belongsTo(ProcurementReference::class, 'procurement_reference_id');
+    }
+
+    public function getDocumentNoAttribute(): ?string
+    {
+        return $this->reference?->document_no;
+    }
+
     public function requirement(): BelongsTo
     {
         return $this->belongsTo(ProcurementRequirement::class, 'procurement_requirement_id');
