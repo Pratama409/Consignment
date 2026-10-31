@@ -13,6 +13,11 @@ class MaterialIssueLine extends Model
 
     protected $guarded = [];
 
+    protected function casts(): array
+    {
+        return ['is_backcharge' => 'boolean'];
+    }
+
     public function issue(): BelongsTo
     {
         return $this->belongsTo(MaterialIssue::class, 'material_issue_id');

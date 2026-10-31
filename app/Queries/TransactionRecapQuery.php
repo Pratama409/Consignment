@@ -2,9 +2,11 @@
 
 namespace App\Queries;
 
+use App\Models\MaterialIssue;
 use App\Models\StockLedgerEntry;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 class TransactionRecapQuery
 {
@@ -36,6 +38,40 @@ class TransactionRecapQuery
             })
             ->orderByDesc('recap_transactions.posted_at')
             ->orderByDesc('stock_ledger_entries.id');
+    }
+
+    /**
+     * Work Order number and Backcharge flag for Data OUT ledger rows, keyed by ledger entry id.
+     * Internal-only: Vendors never receive them.
+     *
+     * @param  Collection<int, StockLedgerEntry>  $entries
+     * @return array<string, array{work_order_no: ?string, backcharge: bool}>
+     */
+    public function issueAnnotations(User $viewer, Collection $entries): array
+    {
+        if ($viewer->isVendor()) {
+            return [];
+        }
+        $morph = (new MaterialIssue)->getMorphClass();
+        $issueIds = $entries->filter(fn ($entry) => $entry->transaction->source_type === $morph)->map(fn ($entry) => $entry->transaction->source_id)->unique()->values();
+        if ($issueIds->isEmpty()) {
+            return [];
+        }
+        $issues = MaterialIssue::with('lines')->whereIn('id', $issueIds)->get()->keyBy('id');
+        $notes = [];
+        foreach ($entries as $entry) {
+            $issue = $entry->transaction->source_type === $morph ? $issues->get($entry->transaction->source_id) : null;
+            if ($issue === null) {
+                continue;
+            }
+            $notes[$entry->id] = [
+                'work_order_no' => $issue->work_order_no,
+                'backcharge' => $issue->lines->contains(fn ($line) => $line->is_backcharge
+                    && $line->vendor_item_id === $entry->bucket->vendor_item_id && $line->location_id === $entry->bucket->location_id),
+            ];
+        }
+
+        return $notes;
     }
 
     public function summaries(User $viewer, array $filters): array

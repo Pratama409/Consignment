@@ -98,6 +98,7 @@ return new class extends Migration
                 $table->timestamp('issued_at');
                 $table->foreignUuid('issued_by')->constrained('users')->restrictOnDelete();
                 $table->string('receiver_name', 150);
+                $table->string('work_order_no', 50)->nullable();
                 $table->string('idempotency_key', 100)->unique();
                 $table->foreignUuid('stock_transaction_id')->nullable()->unique()->constrained()->restrictOnDelete();
                 $table->text('notes')->nullable();
@@ -112,6 +113,7 @@ return new class extends Migration
                 $table->foreignUuid('vendor_item_id')->nullable()->constrained()->restrictOnDelete();
                 $table->foreignUuid('location_id')->nullable()->constrained()->restrictOnDelete();
                 $table->decimal('issued_quantity', 18, 4);
+                $table->boolean('is_backcharge')->default(false);
                 $table->timestamps();
                 $table->unique(['material_issue_id', 'material_request_line_id', 'vendor_item_id', 'location_id'], 'mr_issue_line_bucket_unique');
             });

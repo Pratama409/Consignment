@@ -16,6 +16,8 @@ use App\Models\Department;
 use App\Models\InventoryPeriod;
 use App\Models\Item;
 use App\Models\Location;
+use App\Models\MaterialRequest;
+use App\Models\MaterialRequestLine;
 use App\Models\StockBalance;
 use App\Models\StockItemLocation;
 use App\Models\Unit;
@@ -27,6 +29,8 @@ use Database\Seeders\MasterDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Inertia\Testing\AssertableInertia as Assert;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 class MaterialIssueWorkflowTest extends TestCase
@@ -105,6 +109,91 @@ class MaterialIssueWorkflowTest extends TestCase
 
         $this->expectException(ValidationException::class);
         app(CreateMaterialIssue::class)->handle($other, $warehouse, 'Receiver', now()->toImmutable(), [['line_id' => $other->lines->first()->id, 'quantity' => 1]], $key);
+    }
+
+    /** @return array{0: MaterialRequest, 1: User, 2: User, 3: MaterialRequestLine, 4: VendorItem, 5: Location} */
+    private function readyConsignmentLine(): array
+    {
+        [$request, $warehouse, $admin, $consignment, , $relation, $location] = $this->scenario();
+        app(ApproveMaterialRequest::class)->handle($request, $admin, true, null, 0);
+        $line = $request->lines->firstWhere('item_id', $consignment->id);
+        app(SetMaterialRequestLineReadiness::class)->handle($line, $warehouse, 'READY');
+
+        return [$request, $warehouse, $admin, $line, $relation, $location];
+    }
+
+    public function test_issue_stores_trimmed_work_order_and_backcharge_flags(): void
+    {
+        [$request, $warehouse, , $line, $relation, $location] = $this->readyConsignmentLine();
+
+        $issue = app(CreateMaterialIssue::class)->handle($request, $warehouse, 'Receiver', now()->toImmutable(), [
+            ['line_id' => $line->id, 'vendor_item_id' => $relation->id, 'location_id' => $location->id, 'quantity' => 1, 'is_backcharge' => true],
+        ], (string) Str::uuid(), '  WO-1234  ');
+
+        $this->assertSame('WO-1234', $issue->work_order_no);
+        $this->assertTrue((bool) $issue->lines->sole()->is_backcharge);
+    }
+
+    public function test_blank_work_order_is_stored_as_null_and_backcharge_defaults_to_false(): void
+    {
+        [$request, $warehouse, , $line, $relation, $location] = $this->readyConsignmentLine();
+
+        $issue = app(CreateMaterialIssue::class)->handle($request, $warehouse, 'Receiver', now()->toImmutable(), [
+            ['line_id' => $line->id, 'vendor_item_id' => $relation->id, 'location_id' => $location->id, 'quantity' => 1],
+        ], (string) Str::uuid(), '   ');
+
+        $this->assertNull($issue->work_order_no);
+        $this->assertFalse((bool) $issue->lines->sole()->is_backcharge);
+    }
+
+    public function test_over_length_work_order_is_rejected_with_field_error(): void
+    {
+        [$request, $warehouse, , $line, $relation, $location] = $this->readyConsignmentLine();
+
+        $this->actingAs($warehouse)->post(route('material-requests.issues.store', $request), $this->issuePayload($line, $relation, $location, ['work_order_no' => str_repeat('A', 51)]))
+            ->assertSessionHasErrors('work_order_no');
+        $this->assertDatabaseCount('material_issues', 0);
+    }
+
+    public function test_non_boolean_backcharge_is_rejected(): void
+    {
+        [$request, $warehouse, , $line, $relation, $location] = $this->readyConsignmentLine();
+        $payload = $this->issuePayload($line, $relation, $location);
+        $payload['lines'][0]['is_backcharge'] = 'maybe';
+
+        $this->actingAs($warehouse)->post(route('material-requests.issues.store', $request), $payload)->assertSessionHasErrors('lines.0.is_backcharge');
+        $this->assertDatabaseCount('material_issues', 0);
+    }
+
+    public function test_work_order_and_backcharge_appear_in_issue_detail_and_recap_export(): void
+    {
+        [$request, $warehouse, $admin, $line, $relation, $location] = $this->readyConsignmentLine();
+        $this->actingAs($warehouse)->post(route('material-requests.issues.store', $request), $this->issuePayload($line, $relation, $location, ['work_order_no' => 'WO-9']))->assertSessionHasNoErrors();
+        $this->actingAs($warehouse)->get(route('material-requests.show', $request))->assertInertia(fn (Assert $page) => $page
+            ->where('request.issues.0.work_order_no', 'WO-9')->where('request.issues.0.lines.0.is_backcharge', true));
+
+        $this->actingAs($admin)->get(route('monitoring.transactions.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('rows.data', fn ($rows) => collect($rows)->contains(fn ($row) => $row['type'] === 'MATERIAL_ISSUE' && $row['work_order_no'] === 'WO-9' && $row['backcharge'] === true)));
+
+        $path = tempnam(sys_get_temp_dir(), 'recap-test-');
+        file_put_contents($path, $this->actingAs($admin)->get(route('monitoring.transactions.export'))->assertOk()->getContent());
+        $sheet = IOFactory::load($path)->getActiveSheet()->toArray();
+        @unlink($path);
+        $this->assertContains('WO', $sheet[0]);
+        $this->assertContains('Backcharge', $sheet[0]);
+        $issueRows = array_values(array_filter($sheet, fn ($row) => in_array('WO-9', $row, true)));
+        $this->assertCount(1, $issueRows);
+        $this->assertContains('YA', $issueRows[0]);
+
+        $vendorUser = User::factory()->vendor($relation->vendor)->create();
+        $this->actingAs($vendorUser)->get(route('monitoring.transactions.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('rows.data', fn ($rows) => collect($rows)->every(fn ($row) => $row['work_order_no'] === null && $row['backcharge'] === false)));
+    }
+
+    private function issuePayload($line, $relation, $location, array $extra = []): array
+    {
+        return [...['receiver_name' => 'Receiver', 'issued_at' => now()->toDateTimeString(), 'idempotency_key' => (string) Str::uuid(),
+            'lines' => [['line_id' => $line->id, 'vendor_item_id' => $relation->id, 'location_id' => $location->id, 'quantity' => 1, 'is_backcharge' => true]]], ...$extra];
     }
 
     private function scenario(): array

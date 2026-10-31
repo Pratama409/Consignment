@@ -24,8 +24,8 @@ class CreateMaterialIssue
 {
     public function __construct(private PostStockOut $postStockOut, private OperationalNumberGenerator $numbers, private CreateProcurementRequirement $procurement) {}
 
-    /** @param list<array{line_id:string,quantity:string|int|float,vendor_item_id?:string|null,location_id?:string|null}> $lines */
-    public function handle(MaterialRequest $request, User $warehouse, string $receiver, CarbonImmutable $issuedAt, array $lines, string $idempotencyKey): MaterialIssue
+    /** @param list<array{line_id:string,quantity:string|int|float,vendor_item_id?:string|null,location_id?:string|null,is_backcharge?:bool}> $lines */
+    public function handle(MaterialRequest $request, User $warehouse, string $receiver, CarbonImmutable $issuedAt, array $lines, string $idempotencyKey, ?string $workOrderNo = null): MaterialIssue
     {
         if (! $warehouse->isWarehouse() || trim($receiver) === '' || trim($idempotencyKey) === '' || $lines === []) {
             throw ValidationException::withMessages(['issue' => 'Data serah terima belum lengkap.']);
@@ -38,7 +38,9 @@ class CreateMaterialIssue
             return $existing->load('lines');
         }
 
-        return DB::transaction(function () use ($request, $warehouse, $receiver, $issuedAt, $lines, $idempotencyKey): MaterialIssue {
+        $workOrderNo = ($workOrderNo = trim((string) $workOrderNo)) === '' ? null : $workOrderNo;
+
+        return DB::transaction(function () use ($request, $warehouse, $receiver, $issuedAt, $lines, $idempotencyKey, $workOrderNo): MaterialIssue {
             if ($existing = MaterialIssue::where('idempotency_key', $idempotencyKey)->lockForUpdate()->first()) {
                 if ($existing->material_request_id !== $request->id) {
                     throw ValidationException::withMessages(['idempotency_key' => 'Kunci transaksi sudah digunakan untuk MR lain.']);
@@ -79,11 +81,11 @@ class CreateMaterialIssue
                     $vendorItemId = $vendorItem->id;
                     $postingLines[] = new StockPostingLineData($line->item_id, $vendorItemId, $locationId, StockDirection::Out, (string) $quantity);
                 }
-                $issueLines[] = ['material_request_line_id' => $line->id, 'vendor_item_id' => $vendorItemId, 'location_id' => $locationId, 'issued_quantity' => $quantity];
+                $issueLines[] = ['material_request_line_id' => $line->id, 'vendor_item_id' => $vendorItemId, 'location_id' => $locationId, 'issued_quantity' => $quantity, 'is_backcharge' => filter_var($input['is_backcharge'] ?? false, FILTER_VALIDATE_BOOLEAN)];
             }
 
             $sequence = $this->numbers->next('material_issue');
-            $issue = $locked->issues()->create(['issue_no' => sprintf('OUT/%s/%04d', now()->format('Ymd'), $sequence), 'status' => 'DRAFT', 'issued_at' => $issuedAt->utc(), 'issued_by' => $warehouse->id, 'receiver_name' => trim($receiver), 'idempotency_key' => $idempotencyKey]);
+            $issue = $locked->issues()->create(['issue_no' => sprintf('OUT/%s/%04d', now()->format('Ymd'), $sequence), 'status' => 'DRAFT', 'issued_at' => $issuedAt->utc(), 'issued_by' => $warehouse->id, 'receiver_name' => trim($receiver), 'work_order_no' => $workOrderNo, 'idempotency_key' => $idempotencyKey]);
             foreach ($issueLines as $data) {
                 $issue->lines()->create($data);
             }

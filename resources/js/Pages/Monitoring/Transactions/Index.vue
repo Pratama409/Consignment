@@ -52,6 +52,7 @@ defineProps({ rows: Object, summary: Object, filters: Object });
                             <th>Waktu/Shift</th>
                             <th>Barang</th>
                             <th>Vendor/Lokasi</th>
+                            <th>WO / BC</th>
                             <th>Qty</th>
                         </tr>
                     </thead>
@@ -68,6 +69,7 @@ defineProps({ rows: Object, summary: Object, filters: Object });
                             </td>
                             <td>{{ row.item }}<br />{{ row.ownership }}</td>
                             <td>{{ row.vendor }}<br />{{ row.location }}</td>
+                            <td>{{ row.work_order_no || '—' }}<br /><span v-if="row.backcharge">Backcharge</span></td>
                             <td class="numeric-cell">
                                 <strong>{{
                                     Number(row.quantity).toLocaleString("id-ID")

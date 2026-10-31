@@ -68,8 +68,8 @@ class MaterialRequestController extends Controller
     public function issue(Request $request, MaterialRequest $materialRequest, CreateMaterialIssue $action)
     {
         abort_unless($request->user()->isWarehouse(), 403);
-        $data = $request->validate(['receiver_name' => ['required', 'string', 'max:150'], 'issued_at' => ['required', 'date'], 'idempotency_key' => ['required', 'string', 'max:100'], 'lines' => ['required', 'array', 'min:1'], 'lines.*.line_id' => ['required', 'uuid'], 'lines.*.quantity' => ['required', 'integer', 'min:1'], 'lines.*.vendor_item_id' => ['nullable', 'uuid'], 'lines.*.location_id' => ['nullable', 'uuid']]);
-        $action->handle($materialRequest, $request->user(), $data['receiver_name'], CarbonImmutable::parse($data['issued_at'], 'Asia/Makassar'), $data['lines'], $data['idempotency_key']);
+        $data = $request->validate(['receiver_name' => ['required', 'string', 'max:150'], 'issued_at' => ['required', 'date'], 'work_order_no' => ['nullable', 'string', 'max:50'], 'idempotency_key' => ['required', 'string', 'max:100'], 'lines' => ['required', 'array', 'min:1'], 'lines.*.line_id' => ['required', 'uuid'], 'lines.*.quantity' => ['required', 'integer', 'min:1'], 'lines.*.vendor_item_id' => ['nullable', 'uuid'], 'lines.*.location_id' => ['nullable', 'uuid'], 'lines.*.is_backcharge' => ['nullable', 'boolean']]);
+        $action->handle($materialRequest, $request->user(), $data['receiver_name'], CarbonImmutable::parse($data['issued_at'], 'Asia/Makassar'), $data['lines'], $data['idempotency_key'], $data['work_order_no'] ?? null);
 
         return back()->with('success', 'Data Out berhasil diposting.');
     }
