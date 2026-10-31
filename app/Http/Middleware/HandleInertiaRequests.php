@@ -13,8 +13,15 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
-        $section = explode('.', $request->route()?->getName() ?? '')[0];
-        $labels = ['home' => 'Dashboard', 'manual-data-in' => 'Data IN', 'procurement' => 'Pengadaan', 'monitoring' => 'Monitoring', 'material-requests' => 'Data OUT', 'refills' => 'Vendor Refill', 'incoming-refills' => 'Incoming Refill', 'stock-corrections' => 'Koreksi Stok', 'opening-balances' => 'Saldo Awal', 'shifts' => 'Pengaturan Shift', 'users' => 'Manajemen Pengguna', 'items' => 'Barang', 'vendors' => 'Vendor', 'units' => 'Satuan', 'locations' => 'Lokasi', 'categories' => 'Kategori', 'departments' => 'Departemen', 'imports' => 'Import Master PN'];
+        $routeName = $request->route()?->getName() ?? '';
+        $section = match (true) {
+            str_starts_with($routeName, 'monitoring.transactions') => 'monitoring-transactions',
+            str_starts_with($routeName, 'monitoring.shifts') => 'monitoring-shifts',
+            str_starts_with($routeName, 'monitoring.system-stock') => 'monitoring-stock',
+            str_starts_with($routeName, 'monitoring.reconciliations') => 'monitoring-reconciliations',
+            default => explode('.', $routeName)[0],
+        };
+        $labels = ['home' => 'Dashboard', 'manual-data-in' => 'Data IN', 'procurement' => 'Pengadaan', 'monitoring-transactions' => 'Rekap Transaksi', 'monitoring-shifts' => 'Rekap Shift', 'monitoring-stock' => 'Stock Sistem', 'monitoring-reconciliations' => 'BA Rekonsiliasi', 'material-requests' => 'Data OUT', 'refills' => 'Vendor Refill', 'incoming-refills' => 'Incoming Refill', 'stock-corrections' => 'Koreksi Stok', 'opening-balances' => 'Saldo Awal', 'shifts' => 'Pengaturan Shift', 'users' => 'Manajemen Pengguna', 'items' => 'Barang', 'vendors' => 'Vendor', 'units' => 'Satuan', 'locations' => 'Lokasi', 'categories' => 'Kategori', 'departments' => 'Departemen', 'imports' => 'Import Master PN'];
 
         return [
             ...parent::share($request),
