@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ReadsStockBucket;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,9 +11,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class StockLedgerEntry extends Model
 {
-    use HasUuids;
+    use HasUuids, ReadsStockBucket;
 
-    protected $fillable = ['stock_transaction_id', 'item_id', 'vendor_item_id', 'vendor_id', 'location_id', 'bucket_key', 'quantity', 'entry_sequence', 'physical_occurred_at'];
+    protected $fillable = ['stock_transaction_id', 'stock_bucket_id', 'quantity', 'entry_sequence', 'physical_occurred_at'];
 
     protected function casts(): array
     {
@@ -24,24 +25,9 @@ class StockLedgerEntry extends Model
         return $this->belongsTo(StockTransaction::class, 'stock_transaction_id');
     }
 
-    public function item(): BelongsTo
+    public function bucket(): BelongsTo
     {
-        return $this->belongsTo(Item::class);
-    }
-
-    public function vendorItem(): BelongsTo
-    {
-        return $this->belongsTo(VendorItem::class);
-    }
-
-    public function vendor(): BelongsTo
-    {
-        return $this->belongsTo(Vendor::class);
-    }
-
-    public function location(): BelongsTo
-    {
-        return $this->belongsTo(Location::class);
+        return $this->belongsTo(StockBucket::class, 'stock_bucket_id');
     }
 
     public function lot(): HasOne

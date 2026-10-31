@@ -3,9 +3,10 @@
 namespace Tests\Feature;
 
 use App\Actions\Audit\WriteAuditLog;
-use App\Actions\Inventory\BuildStockBucket;
 use App\Actions\Inventory\PostStockIn;
 use App\Actions\Inventory\PostStockOut;
+use App\Actions\Inventory\ResolveStockBucket;
+use App\Actions\Inventory\ReverseStockTransaction;
 use App\Data\StockPostingData;
 use App\Data\StockPostingLineData;
 use App\Enums\StockDirection;
@@ -16,6 +17,7 @@ use App\Models\Item;
 use App\Models\Location;
 use App\Models\OpeningBalanceBatch;
 use App\Models\StockBalance;
+use App\Models\StockBucket;
 use App\Models\StockItemLocation;
 use App\Models\StockLot;
 use App\Models\StockTransaction;
@@ -131,8 +133,10 @@ class StockPostingTest extends TestCase
         }
         foreach ($pairs as $pair) {
             $posted = app(PostStockIn::class)->handle($this->data([$this->line('2', vendorItem: $pair)]));
-            $this->assertSame($pair->vendor_id, $posted->ledgerEntries()->sole()->vendor_id);
-            $this->assertSame("CONSIGNMENT:{$pair->id}:{$this->location->id}", $posted->ledgerEntries()->sole()->bucket_key);
+            $bucket = $posted->ledgerEntries()->sole()->bucket;
+            $this->assertSame($pair->vendor_id, $bucket->vendorId());
+            $this->assertSame($pair->id, $bucket->vendor_item_id);
+            $this->assertNull($bucket->item_id);
         }
         $this->assertDatabaseCount('stock_balances', 2);
         $this->reject(fn () => app(PostStockOut::class)->handle($this->data([$this->line('3', StockDirection::Out, $pairs[0])], type: StockTransactionType::MaterialIssue)));
@@ -152,7 +156,35 @@ class StockPostingTest extends TestCase
             new StockPostingLineData($item->id, $pair->id, $this->location->id, StockDirection::Out, '1.0000'),
         ], type: StockTransactionType::MaterialIssue));
 
-        $this->assertSame('1.0000', StockBalance::where('bucket_key', "CONSIGNMENT:{$pair->id}:{$this->location->id}")->sole()->quantity);
+        $this->assertSame('1.0000', StockBalance::whereHas('bucket', fn ($query) => $query->where('vendor_item_id', $pair->id)->where('location_id', $this->location->id))->sole()->quantity);
+    }
+
+    public function test_first_posting_creates_exactly_one_bucket(): void
+    {
+        $first = app(PostStockIn::class)->handle($this->data([$this->line('1.0000')]));
+        app(PostStockIn::class)->handle($this->data([$this->line('1.0000')]));
+
+        $bucket = StockBucket::sole();
+        $this->assertSame($this->item->id, $bucket->item_id);
+        $this->assertNull($bucket->vendor_item_id);
+        $this->assertSame($bucket->id, StockBalance::sole()->stock_bucket_id);
+        $this->assertSame($bucket->id, $first->ledgerEntries()->sole()->stock_bucket_id);
+        $this->assertSame('2.0000', StockBalance::sole()->quantity);
+    }
+
+    public function test_reversal_uses_original_bucket_after_default_location_changed(): void
+    {
+        $item = $this->makeItem('CONSIGNMENT');
+        $vendor = Vendor::create(['vendor_code' => 'REV', 'vendor_name' => 'Reverse']);
+        $pair = VendorItem::create(['item_id' => $item->id, 'vendor_id' => $vendor->id, 'location_id' => $this->location->id]);
+        $in = app(PostStockIn::class)->handle($this->data([$this->line('2.0000', vendorItem: $pair)]));
+        $pair->update(['location_id' => Location::create(['location_code' => 'REV-LOC', 'location_name' => 'Moved'])->id]);
+
+        $reversal = app(ReverseStockTransaction::class)->handle($in, $this->actor, 'Salah input', (string) Str::uuid());
+
+        $this->assertSame($in->ledgerEntries()->sole()->stock_bucket_id, $reversal->ledgerEntries()->sole()->stock_bucket_id);
+        $this->assertSame('0.0000', StockBalance::sole()->quantity);
+        $this->assertSame(1, StockBucket::count());
     }
 
     public function test_invalid_ownership_or_inactive_placement_rolls_back_every_line(): void
@@ -165,7 +197,7 @@ class StockPostingTest extends TestCase
         $this->assertDatabaseCount('stock_balances', 0);
         $this->assertDatabaseCount('stock_lots', 0);
         $this->assertDatabaseCount('audit_logs', 0);
-        $this->reject(fn () => app(BuildStockBucket::class)->handle($this->makeItem('CONSIGNMENT'), null, $this->location));
+        $this->reject(fn () => app(ResolveStockBucket::class)->handle($this->makeItem('CONSIGNMENT'), null, $this->location));
         StockItemLocation::query()->update(['is_active' => false]);
         $this->reject(fn () => app(PostStockIn::class)->handle($this->data([$this->line()])));
         $this->assertDatabaseCount('stock_transactions', 0);

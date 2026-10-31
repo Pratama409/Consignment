@@ -13,7 +13,7 @@ class VendorReconciliationSourceQuery
     {
         $startUtc = $start->startOfDay('Asia/Makassar')->utc();
         $endUtc = $end->endOfDay('Asia/Makassar')->utc();
-        $rows = StockLedgerEntry::query()->with('transaction')->where('vendor_id', $vendor->id)->whereHas('transaction', fn ($query) => $query->where('posted_at', '<=', $endUtc))->get()->groupBy('bucket_key');
+        $rows = StockLedgerEntry::query()->with(['transaction', 'bucket.vendorItem'])->whereHas('bucket.vendorItem', fn ($pair) => $pair->where('vendor_id', $vendor->id))->whereHas('transaction', fn ($query) => $query->where('posted_at', '<=', $endUtc))->get()->groupBy('stock_bucket_id');
 
         return $rows->map(function (Collection $entries) use ($startUtc, $endUtc): array {
             $first = $entries->first();
@@ -23,7 +23,7 @@ class VendorReconciliationSourceQuery
             $out = abs($this->sum($period->filter(fn ($row) => $row->transaction->type->value === 'MATERIAL_ISSUE')->pluck('quantity')));
             $adjustment = $this->sum($period->filter(fn ($row) => in_array($row->transaction->type->value, ['ADJUSTMENT', 'REVERSAL'], true))->pluck('quantity'));
 
-            return ['vendor_item_id' => $first->vendor_item_id, 'item_id' => $first->item_id, 'location_id' => $first->location_id, 'opening' => $this->decimal($opening), 'in' => $this->decimal($incoming), 'out' => $this->decimal($out), 'adjustment' => $this->decimal($adjustment), 'closing' => $this->decimal($opening + $incoming - $out + $adjustment), 'transaction_ids' => $period->pluck('stock_transaction_id')->unique()->sort()->values()->all()];
+            return ['vendor_item_id' => $first->bucket->vendor_item_id, 'item_id' => $first->bucket->vendorItem->item_id, 'location_id' => $first->bucket->location_id, 'opening' => $this->decimal($opening), 'in' => $this->decimal($incoming), 'out' => $this->decimal($out), 'adjustment' => $this->decimal($adjustment), 'closing' => $this->decimal($opening + $incoming - $out + $adjustment), 'transaction_ids' => $period->pluck('stock_transaction_id')->unique()->sort()->values()->all()];
         })->values();
     }
 

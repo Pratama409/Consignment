@@ -12,6 +12,7 @@ use App\Models\InventoryPeriod;
 use App\Models\Item;
 use App\Models\Location;
 use App\Models\StockBalance;
+use App\Models\StockBucket;
 use App\Models\StockItemLocation;
 use App\Models\StockLot;
 use App\Models\StockTransaction;
@@ -74,6 +75,57 @@ class MySqlStockConcurrencyTest extends TestCase
             $this->assertSame('0.0000', StockLot::sole()->remaining_quantity);
             $this->assertSame(2, StockTransaction::count());
             $this->assertDatabaseCount('stock_lot_allocations', 1);
+        } finally {
+            foreach ($workers as $worker) {
+                if ($worker->isRunning()) {
+                    $worker->stop();
+                }
+            }
+            if (is_file($gate)) {
+                unlink($gate);
+            }
+        }
+    }
+
+    public function test_concurrent_first_postings_create_one_bucket(): void
+    {
+        if (DB::getDriverName() !== 'mysql' || getenv('STOCK_POSTING_MYSQL_ISOLATED') !== '1') {
+            $this->markTestSkipped('Requires explicitly provisioned isolated consignment_testing MySQL DB and STOCK_POSTING_MYSQL_ISOLATED=1; no database was touched.');
+        }
+        $this->artisan('migrate:fresh', ['--force' => true])->assertSuccessful();
+        $this->seed(MasterDataSeeder::class);
+        $actor = User::factory()->admin()->create();
+        $location = Location::firstOrFail();
+        $item = Item::create(['item_code' => 'FIRST-BUCKET', 'part_number' => 'FIRST-BUCKET', 'item_name' => 'First bucket', 'ownership_type' => 'STOCK', 'tracking_type' => 'QUANTITY', 'unit_id' => Unit::firstOrFail()->id, 'minimum_stock' => '0.0000']);
+        StockItemLocation::create(['item_id' => $item->id, 'location_id' => $location->id]);
+        InventoryPeriod::create(['cutoff_at' => CarbonImmutable::now('UTC')->subDay(), 'status' => 'ACTIVE']);
+
+        $gate = sys_get_temp_dir().DIRECTORY_SEPARATOR.'stock-first-bucket-'.Str::uuid();
+        $connection = config('database.connections.mysql');
+        $env = ['APP_ENV' => 'testing', 'APP_KEY' => config('app.key'), 'DB_CONNECTION' => 'mysql', 'DB_DATABASE' => 'consignment_testing', 'DB_HOST' => $connection['host'], 'DB_PORT' => (string) $connection['port'], 'DB_USERNAME' => $connection['username'], 'DB_PASSWORD' => $connection['password'], 'DB_SOCKET' => $connection['unix_socket'] ?? '', 'DB_URL' => '', 'STOCK_POSTING_MYSQL_ISOLATED' => '1'];
+        $workers = [];
+        try {
+            for ($i = 0; $i < 2; $i++) {
+                $worker = new Process([PHP_BINARY, base_path('tests/Support/stock-posting-worker.php')], base_path(), $env);
+                $worker->setInput(json_encode(['gate' => $gate, 'actor' => $actor->id, 'item' => $item->id, 'location' => $location->id, 'direction' => 'in'], JSON_THROW_ON_ERROR));
+                $worker->setTimeout(30);
+                $worker->start();
+                $workers[] = $worker;
+            }
+            $deadline = microtime(true) + 15;
+            while (! str_contains($workers[0]->getOutput(), 'READY') || ! str_contains($workers[1]->getOutput(), 'READY')) {
+                if (microtime(true) > $deadline || ! $workers[0]->isRunning() || ! $workers[1]->isRunning()) {
+                    $this->fail('Workers failed to reach barrier: '.$workers[0]->getErrorOutput().$workers[1]->getErrorOutput());
+                }
+                usleep(10000);
+            }
+            file_put_contents($gate, 'go');
+            foreach ($workers as $worker) {
+                $this->assertSame(0, $worker->wait(), $worker->getErrorOutput());
+            }
+            $this->assertSame(1, StockBucket::count());
+            $this->assertSame('2.0000', StockBalance::sole()->quantity);
+            $this->assertSame(2, StockTransaction::count());
         } finally {
             foreach ($workers as $worker) {
                 if ($worker->isRunning()) {

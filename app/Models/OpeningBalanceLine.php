@@ -2,15 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ReadsStockBucket;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OpeningBalanceLine extends Model
 {
-    use HasUuids;
+    use HasUuids, ReadsStockBucket;
 
-    protected $fillable = ['row_number', 'item_id', 'vendor_item_id', 'location_id', 'bucket_key', 'quantity', 'source_data'];
+    protected $fillable = ['row_number', 'stock_bucket_id', 'quantity', 'source_data'];
 
     protected function casts(): array
     {
@@ -22,18 +23,8 @@ class OpeningBalanceLine extends Model
         return $this->belongsTo(OpeningBalanceBatch::class, 'opening_balance_batch_id');
     }
 
-    public function item(): BelongsTo
+    public function bucket(): BelongsTo
     {
-        return $this->belongsTo(Item::class);
-    }
-
-    public function vendorItem(): BelongsTo
-    {
-        return $this->belongsTo(VendorItem::class);
-    }
-
-    public function location(): BelongsTo
-    {
-        return $this->belongsTo(Location::class);
+        return $this->belongsTo(StockBucket::class, 'stock_bucket_id');
     }
 }

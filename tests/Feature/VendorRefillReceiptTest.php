@@ -10,6 +10,7 @@ use App\Models\InventoryPeriod;
 use App\Models\Item;
 use App\Models\Location;
 use App\Models\StockBalance;
+use App\Models\StockBucket;
 use App\Models\StockLedgerEntry;
 use App\Models\StockLot;
 use App\Models\Unit;
@@ -84,7 +85,7 @@ class VendorRefillReceiptTest extends TestCase
         $line = $refill->lines->sole();
         $shipment = app(CreateRefillShipment::class)->handle($refill, $this->vendorUser, 'DO-SPLIT', now()->toImmutable(), [['refill_line_id' => $line->id, 'quantity' => 10]]);
         $other = Location::create(['location_code' => 'OTHER', 'location_name' => 'Other']);
-        StockBalance::create(['item_id' => $line->item_id, 'vendor_item_id' => $this->relation->id, 'location_id' => $other->id, 'bucket_key' => "CONSIGNMENT:{$this->relation->id}:{$other->id}", 'quantity' => 1]);
+        StockBalance::create(['stock_bucket_id' => StockBucket::create(['vendor_item_id' => $this->relation->id, 'location_id' => $other->id])->id, 'quantity' => 1]);
         $this->expectException(ValidationException::class);
         app(PostRefillReceipt::class)->handle($shipment, $this->warehouse, 'DO-SPLIT', now()->toImmutable(), [
             ['refill_line_id' => $line->id, 'location_id' => $this->relation->location_id, 'quantity' => 7],

@@ -9,6 +9,7 @@ use App\Actions\Refills\ReviewRefillRevision;
 use App\Models\Item;
 use App\Models\Location;
 use App\Models\StockBalance;
+use App\Models\StockBucket;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Vendor;
@@ -44,7 +45,7 @@ class VendorRefillWorkflowTest extends TestCase
 
     public function test_suggestion_subtracts_stock_and_open_refill_outstanding(): void
     {
-        StockBalance::create(['item_id' => $this->relation->item_id, 'vendor_item_id' => $this->relation->id, 'location_id' => $this->relation->location_id, 'bucket_key' => "CONSIGNMENT:{$this->relation->id}:{$this->relation->location_id}", 'quantity' => 10]);
+        StockBalance::create(['stock_bucket_id' => StockBucket::firstOrCreate(['vendor_item_id' => $this->relation->id, 'location_id' => $this->relation->location_id])->id, 'quantity' => 10]);
         $this->assertSame('20', app(RefillSuggestion::class)->for($this->relation));
         app(CreateVendorRefill::class)->handle($this->vendor, $this->admin, [['item_id' => $this->relation->item_id, 'quantity' => '12']]);
         $this->assertSame('8', app(RefillSuggestion::class)->for($this->relation));
@@ -52,7 +53,7 @@ class VendorRefillWorkflowTest extends TestCase
 
     public function test_suggestion_rounds_legacy_fractional_shortage_up_to_a_whole_unit(): void
     {
-        StockBalance::create(['item_id' => $this->relation->item_id, 'vendor_item_id' => $this->relation->id, 'location_id' => $this->relation->location_id, 'bucket_key' => "CONSIGNMENT:{$this->relation->id}:{$this->relation->location_id}", 'quantity' => '20.0010']);
+        StockBalance::create(['stock_bucket_id' => StockBucket::firstOrCreate(['vendor_item_id' => $this->relation->id, 'location_id' => $this->relation->location_id])->id, 'quantity' => '20.0010']);
 
         $this->assertSame('10', app(RefillSuggestion::class)->for($this->relation));
     }

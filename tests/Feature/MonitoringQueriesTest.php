@@ -45,7 +45,7 @@ class MonitoringQueriesTest extends TestCase
 
         $this->assertSame(1, app(TransactionRecapQuery::class)->build($vendorUser, [])->count());
         $this->assertSame(1, app(SystemStockQuery::class)->build($vendorUser, [])->count());
-        $this->assertSame($relations[0]->id, app(SystemStockQuery::class)->build($vendorUser, [])->first()->vendor_item_id);
+        $this->assertSame($relations[0]->id, app(SystemStockQuery::class)->build($vendorUser, [])->first()->bucket->vendor_item_id);
     }
 
     public function test_recap_summary_uses_all_filtered_rows(): void

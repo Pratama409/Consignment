@@ -4,7 +4,7 @@ namespace App\Models;
 
 use App\Enums\OwnershipType;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Validation\ValidationException;
 
 class VendorItem extends MasterDataModel
@@ -59,8 +59,8 @@ class VendorItem extends MasterDataModel
         return $this->belongsTo(Location::class);
     }
 
-    public function stockBalances(): HasMany
+    public function stockBalances(): HasManyThrough
     {
-        return $this->hasMany(StockBalance::class);
+        return $this->hasManyThrough(StockBalance::class, StockBucket::class, 'vendor_item_id', 'stock_bucket_id');
     }
 }

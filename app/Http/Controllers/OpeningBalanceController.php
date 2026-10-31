@@ -51,7 +51,7 @@ class OpeningBalanceController extends Controller
     public function show(Request $request, OpeningBalanceBatch $openingBalance)
     {
         $this->authorizeView($request);
-        $openingBalance->load(['period', 'lines.item', 'lines.location', 'lines.vendorItem.vendor']);
+        $openingBalance->load(['period', 'lines' => fn ($lines) => $lines->withBucketIdentity()]);
 
         return Inertia::render('OpeningBalance/Preview', [
             'batch' => [

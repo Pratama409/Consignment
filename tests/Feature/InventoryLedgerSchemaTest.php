@@ -30,11 +30,12 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\InteractsWithStockBuckets;
 use Tests\TestCase;
 
 class InventoryLedgerSchemaTest extends TestCase
 {
-    use RefreshDatabase;
+    use InteractsWithStockBuckets, RefreshDatabase;
 
     private User $actor;
 
@@ -75,15 +76,12 @@ class InventoryLedgerSchemaTest extends TestCase
 
     private function bucket(?VendorItem $vendorItem = null): array
     {
-        return [
-            'item_id' => $vendorItem?->item_id ?? $this->item->id, 'vendor_item_id' => $vendorItem?->id, 'location_id' => $this->location->id,
-            'bucket_key' => $vendorItem ? "CONSIGNMENT:{$vendorItem->id}:{$this->location->id}" : "STOCK:{$this->item->id}:{$this->location->id}",
-        ];
+        return ['stock_bucket_id' => $this->bucketFor($vendorItem?->item ?? $this->item, $vendorItem, $this->location)->id];
     }
 
     private function entry(StockTransaction $transaction, array $overrides = []): StockLedgerEntry
     {
-        return $transaction->ledgerEntries()->create([...$this->bucket(), 'vendor_id' => null, 'entry_sequence' => 1, 'quantity' => '12.3456', 'physical_occurred_at' => $transaction->physical_occurred_at, ...$overrides]);
+        return $transaction->ledgerEntries()->create([...$this->bucket(), 'entry_sequence' => 1, 'quantity' => '12.3456', 'physical_occurred_at' => $transaction->physical_occurred_at, ...$overrides]);
     }
 
     private function assertDatabaseRejects(callable $operation): void
@@ -117,7 +115,7 @@ class InventoryLedgerSchemaTest extends TestCase
             $this->assertSame('string', $model->getKeyType());
             $this->assertFalse($model->getIncrementing());
         }
-        foreach ([$transaction->inventory_period_id, $transaction->operational_shift_id, $transaction->source_id, $transaction->created_by, $transaction->posted_by, $entry->stock_transaction_id, $entry->item_id, $entry->location_id, $lot->stock_ledger_entry_id, $allocation->stock_lot_id] as $id) {
+        foreach ([$transaction->inventory_period_id, $transaction->operational_shift_id, $transaction->source_id, $transaction->created_by, $transaction->posted_by, $entry->stock_transaction_id, $entry->stock_bucket_id, $lot->stock_ledger_entry_id, $allocation->stock_lot_id] as $id) {
             $this->assertTrue(Str::isUuid($id));
         }
         $this->assertSame($this->actor->id, $transaction->creator->id);
@@ -149,17 +147,14 @@ class InventoryLedgerSchemaTest extends TestCase
         $this->assertSame(3, StockBalance::count());
     }
 
-    public function test_bucket_keys_and_ownership_cannot_be_forged_to_bypass_uniqueness(): void
+    public function test_balances_are_unique_per_bucket_and_every_row_needs_an_existing_bucket(): void
     {
-        $base = [...$this->bucket(), 'id' => (string) Str::uuid(), 'quantity' => '1.0000'];
-        foreach ([['bucket_key' => 'wrong'], ['bucket_key' => strtolower($base['bucket_key'])], ['bucket_key' => null], ['vendor_item_id' => $this->vendorItem->id], ['item_id' => $this->vendorItem->item_id]] as $invalid) {
-            $this->assertDatabaseRejects(fn () => DB::table('stock_balances')->insert([...$base, ...$invalid]));
-        }
+        $unknown = (string) Str::uuid();
+        $this->assertDatabaseRejects(fn () => DB::table('stock_balances')->insert(['id' => (string) Str::uuid(), 'stock_bucket_id' => $unknown, 'quantity' => '1.0000', 'version' => 0]));
         $entry = $this->entry($this->transaction());
-        $this->assertDatabaseRejects(fn () => DB::table('stock_ledger_entries')->insert([...$entry->getAttributes(), 'id' => (string) Str::uuid(), 'entry_sequence' => 2, 'vendor_id' => $this->vendorItem->vendor_id]));
-        $consignment = $this->entry($this->transaction(), [...$this->bucket($this->vendorItem), 'vendor_id' => $this->vendorItem->vendor_id]);
-        $this->assertSame($this->vendorItem->vendor_id, $consignment->vendor->id);
-        $this->assertDatabaseRejects(fn () => DB::table('stock_ledger_entries')->insert([...$consignment->getAttributes(), 'id' => (string) Str::uuid(), 'entry_sequence' => 2, 'vendor_id' => null]));
+        $this->assertDatabaseRejects(fn () => DB::table('stock_ledger_entries')->insert([...$entry->getAttributes(), 'id' => (string) Str::uuid(), 'entry_sequence' => 2, 'stock_bucket_id' => $unknown]));
+        $this->assertDatabaseRejects(fn () => DB::table('stock_lots')->insert(['id' => (string) Str::uuid(), 'stock_ledger_entry_id' => $entry->id, 'stock_bucket_id' => $unknown, 'received_at' => now(), 'original_quantity' => '1.0000', 'remaining_quantity' => '1.0000']));
+        $this->assertSame($this->vendorItem->vendor_id, $this->entry($this->transaction(), $this->bucket($this->vendorItem))->bucket->vendorId());
     }
 
     public function test_transaction_idempotency_source_and_entry_sequence_are_database_unique(): void
@@ -176,7 +171,7 @@ class InventoryLedgerSchemaTest extends TestCase
     public function test_referenced_period_shift_actor_and_master_rows_cannot_be_deleted_through_sql(): void
     {
         $transaction = $this->transaction();
-        $this->entry($transaction, [...$this->bucket($this->vendorItem), 'vendor_id' => $this->vendorItem->vendor_id]);
+        $this->entry($transaction, $this->bucket($this->vendorItem));
         foreach (['inventory_periods' => $transaction->inventory_period_id, 'operational_shifts' => $transaction->operational_shift_id, 'users' => $this->actor->id, 'items' => $this->vendorItem->item_id, 'vendor_items' => $this->vendorItem->id, 'vendors' => $this->vendorItem->vendor_id, 'locations' => $this->location->id] as $table => $id) {
             $this->assertDatabaseRejects(fn () => DB::table($table)->where('id', $id)->delete());
         }

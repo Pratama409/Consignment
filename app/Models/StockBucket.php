@@ -14,6 +14,9 @@ class StockBucket extends Model
 {
     use HasUuids;
 
+    /** Relations needed to describe a bucket without further queries. */
+    public const IDENTITY = ['item.unit', 'vendorItem.item.unit', 'vendorItem.vendor', 'location'];
+
     protected $fillable = ['item_id', 'vendor_item_id', 'location_id'];
 
     public function item(): BelongsTo

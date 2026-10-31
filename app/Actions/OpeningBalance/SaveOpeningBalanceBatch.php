@@ -2,7 +2,7 @@
 
 namespace App\Actions\OpeningBalance;
 
-use App\Actions\Inventory\BuildStockBucket;
+use App\Actions\Inventory\ResolveStockBucket;
 use App\Data\StockPostingLineData;
 use App\Enums\InventoryPeriodStatus;
 use App\Enums\OwnershipType;
@@ -20,7 +20,7 @@ use InvalidArgumentException;
 
 class SaveOpeningBalanceBatch
 {
-    public function __construct(private BuildStockBucket $buckets) {}
+    public function __construct(private ResolveStockBucket $buckets) {}
 
     public function handle(array $rows, InventoryPeriod $period, User $admin, string $source): OpeningBalanceBatch
     {
@@ -65,10 +65,10 @@ class SaveOpeningBalanceBatch
 
                     $line = new StockPostingLineData($item->id, $vendorItem?->id, $location->id, StockDirection::In, trim((string) ($row['quantity'] ?? '')));
                     $bucket = $this->buckets->handle($item, $vendorItem, $location);
-                    if (isset($buckets[$bucket])) {
-                        throw new InvalidArgumentException('Bucket stok duplikat dengan baris '.$buckets[$bucket].'.');
+                    if (isset($buckets[$bucket->id])) {
+                        throw new InvalidArgumentException('Bucket stok duplikat dengan baris '.$buckets[$bucket->id].'.');
                     }
-                    $buckets[$bucket] = $number;
+                    $buckets[$bucket->id] = $number;
                     $resolved[] = compact('number', 'item', 'location', 'vendorItem', 'line', 'bucket', 'row');
                 } catch (InvalidArgumentException|ValidationException $exception) {
                     $errors['rows.'.$number] = $exception instanceof ValidationException
@@ -93,16 +93,13 @@ class SaveOpeningBalanceBatch
             foreach ($resolved as $entry) {
                 $batch->lines()->create([
                     'row_number' => $entry['number'],
-                    'item_id' => $entry['item']->id,
-                    'vendor_item_id' => $entry['vendorItem']?->id,
-                    'location_id' => $entry['location']->id,
-                    'bucket_key' => $entry['bucket'],
+                    'stock_bucket_id' => $entry['bucket']->id,
                     'quantity' => $entry['line']->quantity,
                     'source_data' => $entry['row'],
                 ]);
             }
 
-            return $batch->load(['period', 'lines.item', 'lines.location', 'lines.vendorItem.vendor']);
+            return $batch->load(['period', 'lines.bucket.item', 'lines.bucket.vendorItem.item', 'lines.bucket.vendorItem.vendor', 'lines.bucket.location']);
         });
     }
 }

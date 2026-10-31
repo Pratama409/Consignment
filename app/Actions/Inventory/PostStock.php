@@ -30,7 +30,7 @@ use Illuminate\Validation\ValidationException;
 /** Shared atomic implementation for the two directional posting entry points. */
 class PostStock
 {
-    public function __construct(private BuildStockBucket $buckets, private ResolveOperationalShift $shifts, private WriteAuditLog $audit) {}
+    public function __construct(private ResolveStockBucket $buckets, private ResolveOperationalShift $shifts, private WriteAuditLog $audit) {}
 
     public function handle(StockPostingData $data, StockDirection $direction, ?InventoryPeriod $openingPeriod = null): StockTransaction
     {
@@ -102,10 +102,10 @@ class PostStock
                     } else {
                         StockItemLocation::where('item_id', $item->id)->where('location_id', $location->id)->lockForUpdate()->get();
                     }
-                    $bucket = ['item_id' => $item->id, 'vendor_item_id' => $vendorItem?->id, 'location_id' => $location->id, 'bucket_key' => $this->buckets->handle($item, $vendorItem, $location)];
-                    $balance = StockBalance::where('bucket_key', $bucket['bucket_key'])->lockForUpdate()->first();
+                    $bucket = $this->buckets->handle($item, $vendorItem, $location);
+                    $balance = StockBalance::where('stock_bucket_id', $bucket->id)->lockForUpdate()->first();
                     if (! $balance) {
-                        $balance = StockBalance::create($bucket);
+                        $balance = StockBalance::create(['stock_bucket_id' => $bucket->id]);
                     }
                     $quantity = $this->units($line->quantity);
                     $remaining = $this->units($balance->quantity) + ($direction === StockDirection::In ? $quantity : -$quantity);
@@ -116,14 +116,14 @@ class PostStock
                         $this->invalid('Saldo melebihi batas quantity yang didukung.', 'quantity');
                     }
                     $entry = $transaction->ledgerEntries()->create([
-                        ...$bucket, 'vendor_id' => $vendorItem?->vendor_id,
+                        'stock_bucket_id' => $bucket->id,
                         'quantity' => ($direction === StockDirection::Out ? '-' : '').$line->quantity,
                         'entry_sequence' => $index + 1, 'physical_occurred_at' => $data->physicalOccurredAt->utc(),
                     ]);
                     if ($direction === StockDirection::In) {
-                        $entry->lot()->create([...$bucket, 'received_at' => $postedAt, 'original_quantity' => $line->quantity, 'remaining_quantity' => $line->quantity]);
+                        $entry->lot()->create(['stock_bucket_id' => $bucket->id, 'received_at' => $postedAt, 'original_quantity' => $line->quantity, 'remaining_quantity' => $line->quantity]);
                     } else {
-                        $lots = StockLot::where('bucket_key', $bucket['bucket_key'])->where('remaining_quantity', '>', 0)->orderBy('received_at')->orderBy('id')->lockForUpdate()->get();
+                        $lots = StockLot::where('stock_bucket_id', $bucket->id)->where('remaining_quantity', '>', 0)->orderBy('received_at')->orderBy('id')->lockForUpdate()->get();
                         $toAllocate = $quantity;
                         foreach ($lots as $lot) {
                             $available = $this->units($lot->remaining_quantity);

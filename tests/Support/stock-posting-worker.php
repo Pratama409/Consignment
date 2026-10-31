@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Inventory\PostStockIn;
 use App\Actions\Inventory\PostStockOut;
 use App\Data\StockPostingData;
 use App\Data\StockPostingLineData;
@@ -29,7 +30,11 @@ while (! is_file($input['gate'])) {
     usleep(10000);
 }
 try {
-    app(PostStockOut::class)->handle(new StockPostingData(StockTransactionType::MaterialIssue, 'concurrency_issue', (string) Str::uuid(), CarbonImmutable::now('UTC'), $input['actor'], (string) Str::uuid(), null, [new StockPostingLineData($input['item'], null, $input['location'], StockDirection::Out, '1.0000')]));
+    if (($input['direction'] ?? 'out') === 'in') {
+        app(PostStockIn::class)->handle(new StockPostingData(StockTransactionType::ManualReceipt, 'concurrency_receipt', (string) Str::uuid(), CarbonImmutable::now('UTC'), $input['actor'], (string) Str::uuid(), null, [new StockPostingLineData($input['item'], null, $input['location'], StockDirection::In, '1.0000')]));
+    } else {
+        app(PostStockOut::class)->handle(new StockPostingData(StockTransactionType::MaterialIssue, 'concurrency_issue', (string) Str::uuid(), CarbonImmutable::now('UTC'), $input['actor'], (string) Str::uuid(), null, [new StockPostingLineData($input['item'], null, $input['location'], StockDirection::Out, '1.0000')]));
+    }
     echo json_encode(['result' => 'posted'], JSON_THROW_ON_ERROR)."\n";
 } catch (ValidationException $exception) {
     if (! array_key_exists('quantity', $exception->errors())) {

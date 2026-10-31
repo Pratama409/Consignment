@@ -40,7 +40,7 @@ class ActivateOpeningBalance
                 throw ValidationException::withMessages(['activation' => 'Tutup periode aktif sebelum mengaktifkan saldo awal baru.']);
             }
 
-            $lines = $lockedBatch->lines()->orderBy('row_number')->get();
+            $lines = $lockedBatch->lines()->with('bucket.vendorItem')->orderBy('row_number')->get();
             if ($lines->isEmpty()) {
                 throw ValidationException::withMessages(['activation' => 'Preview saldo awal tidak mempunyai baris.']);
             }
@@ -52,7 +52,7 @@ class ActivateOpeningBalance
                 $admin->id,
                 $idempotencyKey,
                 'Aktivasi saldo awal '.$lockedBatch->source,
-                $lines->map(fn ($line) => new StockPostingLineData($line->item_id, $line->vendor_item_id, $line->location_id, StockDirection::In, $line->quantity))->all(),
+                $lines->map(fn ($line) => new StockPostingLineData($line->bucket->vendorItem?->item_id ?? $line->bucket->item_id, $line->bucket->vendor_item_id, $line->bucket->location_id, StockDirection::In, $line->quantity))->all(),
             );
             $transaction = $this->postStockIn->handleOpening($posting, $period);
             $lockedBatch->refresh();

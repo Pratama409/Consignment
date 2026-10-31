@@ -120,7 +120,7 @@ class UuidInfrastructureTest extends TestCase
 
     public function test_inventory_foundation_foreign_keys_are_uuid_compatible(): void
     {
-        foreach (['inventory_periods', 'stock_transactions', 'stock_ledger_entries', 'stock_balances', 'stock_lots', 'stock_lot_allocations', 'opening_balance_batches', 'opening_balance_lines', 'stock_adjustments', 'audit_logs', 'shift_definitions', 'operational_shifts'] as $table) {
+        foreach (['inventory_periods', 'stock_transactions', 'stock_buckets', 'stock_ledger_entries', 'stock_balances', 'stock_lots', 'stock_lot_allocations', 'opening_balance_batches', 'opening_balance_lines', 'stock_adjustments', 'audit_logs', 'shift_definitions', 'operational_shifts'] as $table) {
             $columns = collect(Schema::getColumns($table));
             foreach ($columns->filter(fn ($column) => str_ends_with($column['name'], '_id')) as $column) {
                 $this->assertContains($column['type_name'], ['char', 'varchar'], $table.'.'.$column['name']);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Monitoring;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Monitoring\SystemStockRequest;
 use App\Models\StockBalance;
+use App\Models\StockBucket;
 use App\Models\StockLedgerEntry;
 use App\Models\StockLot;
 use App\Queries\SystemStockQuery;
@@ -22,10 +23,10 @@ class SystemStockController extends Controller
 
     public function show(SystemStockRequest $request, StockBalance $balance)
     {
-        abort_if($request->user()->isVendor() && $balance->vendorItem?->vendor_id !== $request->user()->vendor_id, 403);
-        $balance->load(['item.unit', 'vendorItem.vendor', 'location']);
+        $balance->load(array_map(fn (string $relation) => "bucket.{$relation}", StockBucket::IDENTITY));
+        abort_if($request->user()->isVendor() && $balance->vendor?->id !== $request->user()->vendor_id, 403);
 
-        return Inertia::render('Monitoring/SystemStock/Show', ['balance' => $this->row($balance), 'ledger' => StockLedgerEntry::with('transaction')->where('bucket_key', $balance->bucket_key)->latest()->paginate(25), 'lots' => StockLot::where('bucket_key', $balance->bucket_key)->orderBy('received_at')->get()]);
+        return Inertia::render('Monitoring/SystemStock/Show', ['balance' => $this->row($balance), 'ledger' => StockLedgerEntry::with('transaction')->where('stock_bucket_id', $balance->stock_bucket_id)->latest()->paginate(25), 'lots' => StockLot::where('stock_bucket_id', $balance->stock_bucket_id)->orderBy('received_at')->get()]);
     }
 
     private function row($row): array

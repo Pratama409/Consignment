@@ -40,7 +40,7 @@ class StockCorrectionController extends Controller
             'transaction_search' => $search,
             'recent_transactions' => StockTransaction::where('status', 'POSTED')->whereNull('reversal_of_id')
                 ->when($search !== '', fn ($query) => $query->where('transaction_no', 'like', '%'.$search.'%'))
-                ->with(['reversal', 'ledgerEntries.item', 'ledgerEntries.location'])->latest('posted_at')
+                ->with(['reversal', 'ledgerEntries' => fn ($entries) => $entries->withBucketIdentity()])->latest('posted_at')
                 ->paginate(15, ['*'], 'transactions_page')->withQueryString()->through(fn ($transaction) => [
                     'id' => $transaction->id, 'number' => $transaction->transaction_no, 'type' => $transaction->type->value,
                     'posted_at' => $transaction->posted_at?->timezone('Asia/Makassar')->format('d/m/Y H:i'),

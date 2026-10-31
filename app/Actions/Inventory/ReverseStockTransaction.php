@@ -61,7 +61,7 @@ class ReverseStockTransaction
             ]);
 
             foreach ($record->ledgerEntries()->with(['lot', 'lotAllocations'])->orderBy('entry_sequence')->get() as $entry) {
-                $balance = StockBalance::where('bucket_key', $entry->bucket_key)->lockForUpdate()->firstOrFail();
+                $balance = StockBalance::where('stock_bucket_id', $entry->stock_bucket_id)->lockForUpdate()->firstOrFail();
                 $quantity = $this->units($entry->quantity);
                 $reversedUnits = -$quantity;
                 $newBalance = $this->units($balance->quantity) + $reversedUnits;
@@ -69,11 +69,7 @@ class ReverseStockTransaction
                     throw ValidationException::withMessages(['reversal' => 'Saldo tidak cukup untuk membalik transaksi penerimaan.']);
                 }
                 $reversalEntry = $reversal->ledgerEntries()->create([
-                    'item_id' => $entry->item_id,
-                    'vendor_item_id' => $entry->vendor_item_id,
-                    'vendor_id' => $entry->vendor_id,
-                    'location_id' => $entry->location_id,
-                    'bucket_key' => $entry->bucket_key,
+                    'stock_bucket_id' => $entry->stock_bucket_id,
                     'quantity' => $this->decimal($reversedUnits),
                     'entry_sequence' => $entry->entry_sequence,
                     'physical_occurred_at' => $postedAt,

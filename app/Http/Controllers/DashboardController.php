@@ -24,7 +24,7 @@ class DashboardController extends Controller
         if ($vendorId) {
             $refills->where('vendor_id', $vendorId);
             $procurement->whereHas('vendorItem', fn ($query) => $query->where('vendor_id', $vendorId));
-            $balances->whereHas('vendorItem', fn ($query) => $query->where('vendor_id', $vendorId));
+            $balances->whereHas('bucket.vendorItem', fn ($query) => $query->where('vendor_id', $vendorId));
         }
 
         $recent = StockTransaction::query()

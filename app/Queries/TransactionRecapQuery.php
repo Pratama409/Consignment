@@ -13,13 +13,13 @@ class TransactionRecapQuery
         return StockLedgerEntry::query()
             ->select('stock_ledger_entries.*')
             ->join('stock_transactions as recap_transactions', 'recap_transactions.id', '=', 'stock_ledger_entries.stock_transaction_id')
-            ->with(['transaction.operationalShift', 'item', 'vendor', 'location'])
-            ->when($viewer->isVendor(), fn (Builder $query) => $query->where('vendor_id', $viewer->vendor_id))
-            ->when($filters['vendor_id'] ?? null, fn (Builder $query, $value) => $query->where('vendor_id', $value))
-            ->when($filters['item_id'] ?? null, fn (Builder $query, $value) => $query->where('item_id', $value))
-            ->when($filters['location_id'] ?? null, fn (Builder $query, $value) => $query->where('location_id', $value))
+            ->withBucketIdentity()->with('transaction.operationalShift')
+            ->when($viewer->isVendor(), fn (Builder $query) => $query->whereHas('bucket.vendorItem', fn ($pair) => $pair->where('vendor_id', $viewer->vendor_id)))
+            ->when($filters['vendor_id'] ?? null, fn (Builder $query, $value) => $query->whereHas('bucket.vendorItem', fn ($pair) => $pair->where('vendor_id', $value)))
+            ->when($filters['item_id'] ?? null, fn (Builder $query, $value) => $query->whereHas('bucket', fn ($bucket) => $bucket->whereItem(fn ($item) => $item->whereKey($value))))
+            ->when($filters['location_id'] ?? null, fn (Builder $query, $value) => $query->whereHas('bucket', fn ($bucket) => $bucket->where('location_id', $value)))
             ->when($filters['ownership'] ?? null, function (Builder $query, $value) {
-                $query->whereHas('item', fn ($item) => $item->where('ownership_type', $value));
+                $query->whereHas('bucket', fn ($bucket) => $bucket->whereItem(fn ($item) => $item->where('ownership_type', $value)));
             })
             ->when($filters['type'] ?? null, function (Builder $query, $value) {
                 $query->whereHas('transaction', fn ($transaction) => $transaction->where('type', $value));
@@ -32,7 +32,7 @@ class TransactionRecapQuery
             })
             ->when($filters['q'] ?? null, function (Builder $query, $value) {
                 $term = '%'.str_replace(['%', '_'], ['\%', '\_'], trim($value)).'%';
-                $query->where(fn ($nested) => $nested->whereHas('item', fn ($item) => $item->where('item_code', 'like', $term)->orWhere('part_number', 'like', $term)->orWhere('item_name', 'like', $term))->orWhereHas('transaction', fn ($transaction) => $transaction->where('transaction_no', 'like', $term)));
+                $query->where(fn ($nested) => $nested->whereHas('bucket', fn ($bucket) => $bucket->whereItem(fn ($item) => $item->where(fn ($match) => $match->where('item_code', 'like', $term)->orWhere('part_number', 'like', $term)->orWhere('item_name', 'like', $term))))->orWhereHas('transaction', fn ($transaction) => $transaction->where('transaction_no', 'like', $term)));
             })
             ->orderByDesc('recap_transactions.posted_at')
             ->orderByDesc('stock_ledger_entries.id');

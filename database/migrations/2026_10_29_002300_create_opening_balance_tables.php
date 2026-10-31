@@ -24,14 +24,11 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('opening_balance_batch_id')->constrained()->cascadeOnDelete();
             $table->unsignedInteger('row_number');
-            $table->foreignUuid('item_id')->constrained()->restrictOnDelete();
-            $table->foreignUuid('vendor_item_id')->nullable()->constrained()->restrictOnDelete();
-            $table->foreignUuid('location_id')->constrained()->restrictOnDelete();
-            $table->string('bucket_key', 100);
+            $table->foreignUuid('stock_bucket_id')->constrained()->restrictOnDelete();
             $table->decimal('quantity', 18, 4);
             $table->json('source_data');
             $table->timestamps();
-            $table->unique(['opening_balance_batch_id', 'bucket_key'], 'opening_batch_bucket_unique');
+            $table->unique(['opening_balance_batch_id', 'stock_bucket_id'], 'opening_batch_bucket_unique');
             $table->unique(['opening_balance_batch_id', 'row_number'], 'opening_batch_row_unique');
         });
     }

@@ -59,34 +59,33 @@ return new class extends Migration
         Schema::create('stock_ledger_entries', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->foreignUuid('stock_transaction_id')->constrained()->restrictOnDelete();
-            $this->bucketColumns($table);
-            $table->foreignUuid('vendor_id')->nullable()->constrained()->restrictOnDelete();
+            $table->foreignUuid('stock_bucket_id')->constrained()->restrictOnDelete();
             $table->decimal('quantity', 18, 4);
             $table->unsignedInteger('entry_sequence');
             $table->dateTime('physical_occurred_at');
             $table->timestamps();
             $table->unique(['stock_transaction_id', 'entry_sequence']);
-            $table->index(['bucket_key', 'created_at']);
+            $table->index(['stock_bucket_id', 'created_at']);
         });
 
         Schema::create('stock_balances', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $this->bucketColumns($table);
+            $table->foreignUuid('stock_bucket_id')->constrained()->restrictOnDelete();
             $table->decimal('quantity', 18, 4)->default(0);
             $table->unsignedBigInteger('version')->default(0);
             $table->timestamps();
-            $table->unique('bucket_key');
+            $table->unique('stock_bucket_id');
         });
 
         Schema::create('stock_lots', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->foreignUuid('stock_ledger_entry_id')->unique()->constrained()->restrictOnDelete();
-            $this->bucketColumns($table);
+            $table->foreignUuid('stock_bucket_id')->constrained()->restrictOnDelete();
             $table->dateTime('received_at');
             $table->decimal('original_quantity', 18, 4);
             $table->decimal('remaining_quantity', 18, 4);
             $table->timestamps();
-            $table->index(['bucket_key', 'received_at', 'id']);
+            $table->index(['stock_bucket_id', 'received_at', 'id']);
         });
 
         Schema::create('stock_lot_allocations', function (Blueprint $table): void {
@@ -99,14 +98,6 @@ return new class extends Migration
         });
 
         $this->integrityGuards();
-    }
-
-    private function bucketColumns(Blueprint $table): void
-    {
-        $table->foreignUuid('item_id')->constrained()->restrictOnDelete();
-        $table->foreignUuid('vendor_item_id')->nullable()->constrained()->restrictOnDelete();
-        $table->foreignUuid('location_id')->constrained()->restrictOnDelete();
-        $table->string('bucket_key', 100);
     }
 
     private function bucketGuards(): void
@@ -128,15 +119,6 @@ return new class extends Migration
     private function integrityGuards(): void
     {
         $this->bucketGuards();
-        $stockKey = DB::getDriverName() === 'mysql' ? "CONCAT('STOCK:', NEW.item_id, ':', NEW.location_id)" : "'STOCK:' || NEW.item_id || ':' || NEW.location_id";
-        $consignmentKey = DB::getDriverName() === 'mysql' ? "CONCAT('CONSIGNMENT:', NEW.vendor_item_id, ':', NEW.location_id)" : "'CONSIGNMENT:' || NEW.vendor_item_id || ':' || NEW.location_id";
-        // MySQL's default collation ignores case; normalized bucket keys must be exact on both engines.
-        $equals = fn (string $key): string => DB::getDriverName() === 'mysql' ? "CAST(NEW.bucket_key AS BINARY) = CAST({$key} AS BINARY)" : "NEW.bucket_key = {$key}";
-        $stockMatches = $equals($stockKey);
-        $consignmentMatches = $equals($consignmentKey);
-        $validBucket = "((NEW.vendor_item_id IS NULL AND {$stockMatches} AND EXISTS (SELECT 1 FROM items WHERE id = NEW.item_id AND ownership_type = 'STOCK'))
-            OR (NEW.vendor_item_id IS NOT NULL AND {$consignmentMatches} AND EXISTS (SELECT 1 FROM vendor_items vi JOIN items i ON i.id = vi.item_id WHERE vi.id = NEW.vendor_item_id AND vi.item_id = NEW.item_id AND i.ownership_type = 'CONSIGNMENT')))";
-
         foreach (['INSERT', 'UPDATE'] as $event) {
             $suffix = strtolower($event);
             // Keep every inventory quantity within the same ten-integer/four-decimal range as its DTO.
@@ -145,11 +127,6 @@ return new class extends Migration
                 $invalid = implode(' OR ', array_map(fn ($column) => "ABS(NEW.{$column}) >= 10000000000 OR NEW.{$column} <> ROUND(NEW.{$column}, 4)", $columns));
                 $this->guard("{$table}_precision_{$suffix}", $table, $event, $invalid, 'Quantity exceeds supported four-decimal range');
             }
-            foreach (['stock_ledger_entries', 'stock_balances', 'stock_lots'] as $table) {
-                $this->guard("{$table}_bucket_{$suffix}", $table, $event, "NOT {$validBucket}", 'Invalid inventory bucket');
-            }
-            $this->guard("stock_ledger_vendor_{$suffix}", 'stock_ledger_entries', $event,
-                '(NEW.vendor_item_id IS NULL AND NEW.vendor_id IS NOT NULL) OR (NEW.vendor_item_id IS NOT NULL AND (NEW.vendor_id IS NULL OR NOT EXISTS (SELECT 1 FROM vendor_items WHERE id = NEW.vendor_item_id AND vendor_id = NEW.vendor_id)))', 'Invalid ledger Vendor snapshot');
             $this->guard("stock_ledger_quantity_{$suffix}", 'stock_ledger_entries', $event, 'NEW.quantity = 0 OR NEW.entry_sequence < 1', 'Ledger quantity must be nonzero and sequence positive');
             $this->guard("stock_balances_quantity_{$suffix}", 'stock_balances', $event, 'NEW.quantity < 0', 'Stock balance cannot be negative');
             $this->guard("stock_lots_quantity_{$suffix}", 'stock_lots', $event, 'NEW.original_quantity <= 0 OR NEW.remaining_quantity < 0 OR NEW.remaining_quantity > NEW.original_quantity', 'Invalid lot quantities');
@@ -167,7 +144,7 @@ return new class extends Migration
         }
 
         $same = fn (string $column): string => DB::getDriverName() === 'mysql' ? "NEW.{$column} <=> OLD.{$column}" : "NEW.{$column} IS OLD.{$column}";
-        $identity = implode(' AND ', array_map($same, ['id', 'stock_ledger_entry_id', 'item_id', 'vendor_item_id', 'location_id', 'bucket_key', 'received_at', 'original_quantity']));
+        $identity = implode(' AND ', array_map($same, ['id', 'stock_ledger_entry_id', 'stock_bucket_id', 'received_at', 'original_quantity']));
         $this->guard('stock_lots_identity_update', 'stock_lots', 'UPDATE', "NOT ({$identity})", 'Lot identity is immutable');
         $this->guard('stock_lots_immutable_delete', 'stock_lots', 'DELETE', '1 = 1', 'Stock lots preserve inventory history');
 

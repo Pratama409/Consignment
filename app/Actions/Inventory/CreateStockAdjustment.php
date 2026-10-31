@@ -16,7 +16,7 @@ use Throwable;
 
 class CreateStockAdjustment
 {
-    public function __construct(private BuildStockBucket $buckets, private WriteAuditLog $audit) {}
+    public function __construct(private ResolveStockBucket $buckets, private WriteAuditLog $audit) {}
 
     public function handle(array $data, User $requester): StockAdjustment
     {
