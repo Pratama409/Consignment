@@ -50,6 +50,7 @@ class VendorReconciliationTest extends TestCase
         $this->assertSame('10.0000', $ba->lines->sole()->in_quantity);
         $this->assertSame('4.0000', $ba->lines->sole()->out_quantity);
         $this->assertSame('6.0000', $ba->lines->sole()->system_closing_quantity);
+        $ba->update(['status' => 'VENDOR_REVIEW']);
         $vendorUser = User::factory()->vendor($vendor)->create();
         app(SubmitVendorResponse::class)->handle($ba, true, '', $vendorUser);
         $final = app(FinalizeVendorReconciliation::class)->handle($ba->fresh(), $admin);

@@ -18,6 +18,7 @@ use App\Services\Reconciliation\ReconciliationPdfExporter;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class VendorReconciliationController extends Controller
@@ -50,7 +51,8 @@ class VendorReconciliationController extends Controller
             'reconciliation' => $reconciliation->load(['vendor', 'lines.item', 'lines.location', 'responses.actor', 'documents']),
             'abilities' => [
                 'edit_physical' => $user->isAdmin() && $status === 'DRAFT',
-                'respond' => $user->isVendor() && ! in_array($status, ['FINAL', 'AGREED'], true),
+                'submit_review' => $user->isAdmin() && $status === 'DRAFT',
+                'respond' => $user->isVendor() && $status === 'VENDOR_REVIEW',
                 'resolve' => $user->isAdmin() && $status === 'DISPUTED',
                 'finalize' => $user->isAdmin() && in_array($status, ['AGREED', 'RESOLVED'], true),
             ],
@@ -63,6 +65,18 @@ class VendorReconciliationController extends Controller
         $respond->handle($reconciliation, $request->boolean('agree'), $data['note'] ?? '', $request->user());
 
         return back()->with('success', 'Respons BA tersimpan.');
+    }
+
+    public function submitReview(Request $request, VendorReconciliation $reconciliation)
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+        abort_unless($reconciliation->status->value === 'DRAFT', 422);
+        if ($reconciliation->lines()->whereNull('physical_quantity')->exists()) {
+            throw ValidationException::withMessages(['review' => 'Isi seluruh quantity fisik sebelum dikirim ke Vendor.']);
+        }
+        $reconciliation->update(['status' => 'VENDOR_REVIEW']);
+
+        return back()->with('success', 'BA dikirim untuk review Vendor.');
     }
 
     public function physical(Request $request, VendorReconciliationLine $line, UpdatePhysicalQuantity $update)

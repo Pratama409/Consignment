@@ -54,6 +54,7 @@ Route::middleware(['auth', EnsureActiveUser::class])->group(function () {
     Route::post('/monitoring/reconciliations', [VendorReconciliationController::class, 'generate'])->name('monitoring.reconciliations.generate');
     Route::get('/monitoring/reconciliations/{reconciliation}', [VendorReconciliationController::class, 'show'])->whereUuid('reconciliation')->name('monitoring.reconciliations.show');
     Route::post('/monitoring/reconciliations/{reconciliation}/respond', [VendorReconciliationController::class, 'respond'])->whereUuid('reconciliation')->name('monitoring.reconciliations.respond');
+    Route::post('/monitoring/reconciliations/{reconciliation}/submit-review', [VendorReconciliationController::class, 'submitReview'])->whereUuid('reconciliation')->name('monitoring.reconciliations.submit-review');
     Route::post('/monitoring/reconciliations/{reconciliation}/resolve', [VendorReconciliationController::class, 'resolve'])->whereUuid('reconciliation')->name('monitoring.reconciliations.resolve');
     Route::post('/monitoring/reconciliations/{reconciliation}/finalize', [VendorReconciliationController::class, 'finalize'])->whereUuid('reconciliation')->name('monitoring.reconciliations.finalize');
     Route::patch('/monitoring/reconciliation-lines/{line}/physical', [VendorReconciliationController::class, 'physical'])->whereUuid('line')->name('monitoring.reconciliations.physical');

@@ -29,6 +29,17 @@ const qty = (v) =>
                     <p>Versi {{ reconciliation.version }}</p>
                 </div>
                 <div class="form-actions">
+                    <button
+                        v-if="abilities.submit_review"
+                        class="button button--primary"
+                        @click="
+                            router.post(
+                                `/monitoring/reconciliations/${reconciliation.id}/submit-review`,
+                            )
+                        "
+                    >
+                        Kirim ke Vendor
+                    </button>
                     <a
                         :href="`/monitoring/reconciliations/${reconciliation.id}/export/xlsx`"
                         class="button button--secondary"
@@ -38,9 +49,7 @@ const qty = (v) =>
                         class="button button--secondary"
                         >PDF</a
                     ><button
-                        v-if="
-                            abilities.finalize
-                        "
+                        v-if="abilities.finalize"
                         class="button button--primary"
                         @click="
                             router.post(
@@ -78,12 +87,9 @@ const qty = (v) =>
                             <td>{{ qty(line.out_quantity) }}</td>
                             <td>{{ qty(line.system_closing_quantity) }}</td>
                             <td>
-                                <span
-                                    v-if="
-                                        !abilities.edit_physical
-                                    "
-                                    >{{ qty(line.physical_quantity) }}</span
-                                >
+                                <span v-if="!abilities.edit_physical">{{
+                                    qty(line.physical_quantity)
+                                }}</span>
                                 <div v-else class="form-actions">
                                     <input
                                         v-model.number="physical[line.id]"
@@ -149,8 +155,7 @@ const qty = (v) =>
             >
             <ul>
                 <li v-for="item in reconciliation.responses" :key="item.id">
-                    {{ item.actor?.name }} ·
-                    {{ item.decision }} ·
+                    {{ item.actor?.name }} · {{ item.decision }} ·
                     {{ item.note }}
                 </li>
             </ul>

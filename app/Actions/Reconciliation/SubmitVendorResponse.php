@@ -18,7 +18,7 @@ class SubmitVendorResponse
 
         return DB::transaction(function () use ($ba, $agree, $note, $vendorUser): VendorReconciliationResponse {
             $locked = VendorReconciliation::query()->lockForUpdate()->findOrFail($ba->id);
-            if (in_array($locked->status->value, ['FINAL', 'AGREED'], true)) {
+            if ($locked->status->value !== 'VENDOR_REVIEW') {
                 throw ValidationException::withMessages(['response' => 'BA ini tidak lagi menerima respons Vendor.']);
             }
             $response = $locked->responses()->create(['decision' => $agree ? 'AGREE' : 'DISPUTE', 'note' => trim($note) ?: null, 'actor_id' => $vendorUser->id, 'responded_at' => now()]);

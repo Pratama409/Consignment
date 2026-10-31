@@ -36,6 +36,8 @@ class VendorImportController extends Controller
         }
         $rows = [];
         $seen = [];
+        $vendorsByName = Vendor::all()->keyBy(fn (Vendor $vendor) => $this->normalizeName($vendor->vendor_name));
+        $reservedCodes = Vendor::pluck('vendor_code')->mapWithKeys(fn ($code) => [mb_strtoupper($code) => true])->all();
         for ($line = 2; $line <= $sheet->getHighestDataRow(); $line++) {
             $nameCell = $sheet->getCell("A{$line}");
             $picCell = $sheet->getCell("B{$line}");
@@ -47,13 +49,15 @@ class VendorImportController extends Controller
             if ($name === '' && $pic === '') {
                 continue;
             }
-            $key = mb_strtoupper(preg_replace('/\s+/', ' ', $name));
+            $key = $this->normalizeName($name);
             if ($name === '' || isset($seen[$key]) || $key === 'WAREHOUSE') {
                 throw ValidationException::withMessages(['file' => "Nama Vendor kosong, duplikat, atau terlarang pada baris {$line}."]);
             }
             $seen[$key] = true;
-            $vendor = Vendor::whereRaw('UPPER(vendor_name) = ?', [$key])->first();
-            $rows[] = ['row' => $line, 'vendor_name' => $name, 'pic_name' => $pic === '' || $pic === '-' ? null : $pic, 'action' => $vendor ? 'UPDATE' : 'CREATE', 'vendor_id' => $vendor?->id, 'proposed_code' => $vendor?->vendor_code ?? $this->uniqueCode($name)];
+            $vendor = $vendorsByName->get($key);
+            $code = $vendor?->vendor_code ?? $this->uniqueCode($name, $reservedCodes);
+            $reservedCodes[mb_strtoupper($code)] = true;
+            $rows[] = ['row' => $line, 'vendor_name' => $name, 'pic_name' => $pic === '' || $pic === '-' ? null : $pic, 'action' => $vendor ? 'UPDATE' : 'CREATE', 'vendor_id' => $vendor?->id, 'proposed_code' => $code];
         }
         if ($rows === []) {
             throw ValidationException::withMessages(['file' => 'File tidak berisi data Vendor.']);
@@ -84,14 +88,19 @@ class VendorImportController extends Controller
         return to_route('vendors.index')->with('success', 'Vendor dan PIC berhasil diimpor.');
     }
 
-    private function uniqueCode(string $name): string
+    private function uniqueCode(string $name, array $reservedCodes): string
     {
         $base = substr(Str::upper(Str::slug($name)), 0, 50) ?: 'VENDOR';
         $code = $base;
-        for ($suffix = 2; Vendor::where('vendor_code', $code)->exists(); $suffix++) {
+        for ($suffix = 2; isset($reservedCodes[mb_strtoupper($code)]); $suffix++) {
             $code = substr($base, 0, 46).'-'.$suffix;
         }
 
         return $code;
+    }
+
+    private function normalizeName(string $name): string
+    {
+        return mb_strtoupper(trim(preg_replace('/\s+/', ' ', $name)));
     }
 }
