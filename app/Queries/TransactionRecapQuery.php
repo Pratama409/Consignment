@@ -53,9 +53,11 @@ class TransactionRecapQuery
 
     private function units(string $quantity): int
     {
-        [$whole, $fraction] = explode('.', number_format((float) $quantity, 4, '.', ''));
+        $normalized = number_format(abs((float) $quantity), 4, '.', '');
+        [$whole, $fraction] = explode('.', $normalized);
+        $units = ((int) $whole * 10000) + (int) $fraction;
 
-        return ((int) $whole * 10000) + ((int) $whole < 0 ? -(int) $fraction : (int) $fraction);
+        return (float) $quantity < 0 ? -$units : $units;
     }
 
     private function decimal(int $units): string

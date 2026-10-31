@@ -4,13 +4,15 @@ import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import AppLayout from "../../../Layouts/AppLayout.vue";
 import PageBanner from "../../../Components/PageBanner.vue";
 defineOptions({ layout: AppLayout });
-const props = defineProps({ reconciliation: Object });
+const props = defineProps({ reconciliation: Object, abilities: Object });
 const page = usePage();
 const response = useForm({ agree: true, note: "" });
 const resolve = useForm({ note: "" });
 const physical = reactive({});
 const qty = (v) =>
-    Number(v || 0).toLocaleString("id-ID", { maximumFractionDigits: 0 });
+    v === null || v === undefined
+        ? "Belum diisi"
+        : Number(v).toLocaleString("id-ID", { maximumFractionDigits: 0 });
 </script>
 <template>
     <Head :title="reconciliation.reconciliation_no" />
@@ -37,8 +39,7 @@ const qty = (v) =>
                         >PDF</a
                     ><button
                         v-if="
-                            page.props.auth.user.role === 'admin' &&
-                            reconciliation.status !== 'FINAL'
+                            abilities.finalize
                         "
                         class="button button--primary"
                         @click="
@@ -79,7 +80,7 @@ const qty = (v) =>
                             <td>
                                 <span
                                     v-if="
-                                        page.props.auth.user.role === 'vendor'
+                                        !abilities.edit_physical
                                     "
                                     >{{ qty(line.physical_quantity) }}</span
                                 >
@@ -112,7 +113,7 @@ const qty = (v) =>
         </section>
         <section class="surface-card form-stack">
             <h2>Respons dan penyelesaian</h2>
-            <template v-if="page.props.auth.user.role === 'vendor'"
+            <template v-if="abilities.respond"
                 ><select v-model="response.agree" class="form-input">
                     <option :value="true">Setuju</option>
                     <option :value="false">Tidak setuju</option></select
@@ -130,7 +131,7 @@ const qty = (v) =>
                 >
                     Kirim respons
                 </button></template
-            ><template v-else>
+            ><template v-if="abilities.resolve">
                 <textarea
                     v-model="resolve.note"
                     class="form-input"
@@ -149,7 +150,7 @@ const qty = (v) =>
             <ul>
                 <li v-for="item in reconciliation.responses" :key="item.id">
                     {{ item.actor?.name }} ·
-                    {{ item.agree ? "Setuju" : "Tidak setuju" }} ·
+                    {{ item.decision }} ·
                     {{ item.note }}
                 </li>
             </ul>

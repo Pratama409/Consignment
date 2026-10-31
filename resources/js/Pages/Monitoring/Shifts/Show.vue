@@ -11,7 +11,9 @@ const close = () =>
         { preserveScroll: true },
     );
 const qty = (v) =>
-    Number(v || 0).toLocaleString("id-ID", { maximumFractionDigits: 0 });
+    v === null || v === undefined
+        ? "Belum diisi"
+        : Number(v).toLocaleString("id-ID", { maximumFractionDigits: 0 });
 </script>
 <template>
     <Head title="Detail Rekap Shift" />

@@ -43,8 +43,18 @@ class VendorReconciliationController extends Controller
     public function show(Request $request, VendorReconciliation $reconciliation)
     {
         $this->authorizeView($request, $reconciliation);
+        $status = $reconciliation->status->value;
+        $user = $request->user();
 
-        return Inertia::render('Monitoring/Reconciliations/Show', ['reconciliation' => $reconciliation->load(['vendor', 'lines.item', 'lines.location', 'responses.actor', 'documents'])]);
+        return Inertia::render('Monitoring/Reconciliations/Show', [
+            'reconciliation' => $reconciliation->load(['vendor', 'lines.item', 'lines.location', 'responses.actor', 'documents']),
+            'abilities' => [
+                'edit_physical' => $user->isAdmin() && $status === 'DRAFT',
+                'respond' => $user->isVendor() && ! in_array($status, ['FINAL', 'AGREED'], true),
+                'resolve' => $user->isAdmin() && $status === 'DISPUTED',
+                'finalize' => $user->isAdmin() && in_array($status, ['AGREED', 'RESOLVED'], true),
+            ],
+        ]);
     }
 
     public function respond(VendorResponseRequest $request, VendorReconciliation $reconciliation, SubmitVendorResponse $respond)

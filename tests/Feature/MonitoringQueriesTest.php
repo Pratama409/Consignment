@@ -61,4 +61,15 @@ class MonitoringQueriesTest extends TestCase
 
         $this->assertSame('7.0000', app(TransactionRecapQuery::class)->summaries($admin, [])['in']);
     }
+
+    public function test_recap_preserves_sign_for_fractional_legacy_quantities(): void
+    {
+        $method = new \ReflectionMethod(TransactionRecapQuery::class, 'units');
+        $query = app(TransactionRecapQuery::class);
+
+        $this->assertSame(-5000, $method->invoke($query, '-0.5000'));
+        $this->assertSame(-15000, $method->invoke($query, '-1.5000'));
+        $this->assertSame(5000, $method->invoke($query, '0.5000'));
+        $this->assertSame(0, $method->invoke($query, '0.0000'));
+    }
 }

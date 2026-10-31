@@ -132,7 +132,7 @@ const storeDocument = (row) =>
                                 >
                                     {{ reference.stage }} ·
                                     {{ reference.document_no }} ·
-                                    {{ Number(reference.quantity) }}
+                                    {{ Number(reference.covered_quantity).toLocaleString('id-ID') }}
                                 </div>
                                 <span v-if="!row.references.length">—</span>
                             </td>
