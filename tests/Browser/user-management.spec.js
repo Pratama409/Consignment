@@ -12,7 +12,7 @@ test("admin manages users with validation, filters, preserved password and expli
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await login(page);
-    await page.locator(".desktop-sidebar").getByRole("link", { name: "Manajemen Pengguna", exact: true }).click();
+    await page.locator(".desktop-sidebar").getByRole("link", { name: "User Management", exact: true }).click();
     await page.getByRole("link", { name: "Tambah Pengguna", exact: true }).click();
     await page.getByRole("button", { name: "Simpan Pengguna", exact: true }).click();
     await expect(page.getByRole("alert").first()).toBeVisible();
@@ -56,7 +56,7 @@ test("admin manages users with validation, filters, preserved password and expli
     }
     await page.locator(".desktop-sidebar").getByRole("button", { name: "Keluar", exact: true }).click();
     await login(page, "operator@browser.test", "Operator-password-123");
-    await expect(page.locator(".desktop-sidebar").getByRole("link", { name: "Manajemen Pengguna" })).toHaveCount(0);
+    await expect(page.locator(".desktop-sidebar").getByRole("link", { name: "User Management" })).toHaveCount(0);
     expect((await page.request.get("/users")).status()).toBe(403);
     expect(errors).toEqual([]);
 });

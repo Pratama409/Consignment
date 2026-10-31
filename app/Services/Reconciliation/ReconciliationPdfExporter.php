@@ -49,6 +49,6 @@ class ReconciliationPdfExporter
             $pdf .= sprintf("%010d 00000 n \n", $offsets[$i]);
         }
 
-return $pdf."trailer << /Size 6 /Root 1 0 R >>\nstartxref\n{$xref}\n%%EOF";
+        return $pdf."trailer << /Size 6 /Root 1 0 R >>\nstartxref\n{$xref}\n%%EOF";
     }
 }

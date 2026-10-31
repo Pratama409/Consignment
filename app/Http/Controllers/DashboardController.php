@@ -23,7 +23,7 @@ class DashboardController extends Controller
         $balances = StockBalance::query();
         if ($vendorId) {
             $refills->where('vendor_id', $vendorId);
-            $procurement->where('vendor_id', $vendorId);
+            $procurement->whereHas('vendorItem', fn ($query) => $query->where('vendor_id', $vendorId));
             $balances->whereHas('vendorItem', fn ($query) => $query->where('vendor_id', $vendorId));
         }
 

@@ -88,7 +88,7 @@ test("admin completes Vendor, Lokasi, Barang create/detail/edit and Excel export
     await expect(dialog).not.toBeVisible();
     await screenshotWidths(page, "master-kategori");
 
-    await sidebar.getByRole("link", { name: "Barang", exact: true }).click();
+    await sidebar.getByRole("link", { name: "Master Part", exact: true }).click();
     await page
         .getByRole("link", { name: "Tambah Barang", exact: true })
         .first()
