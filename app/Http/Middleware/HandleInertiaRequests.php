@@ -14,7 +14,7 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
         $section = explode('.', $request->route()?->getName() ?? '')[0];
-        $labels = ['material-requests' => 'Material Request', 'refills' => 'Vendor Refill', 'incoming-refills' => 'Incoming Refill', 'stock-corrections' => 'Koreksi Stok', 'opening-balances' => 'Saldo Awal', 'shifts' => 'Pengaturan Shift', 'users' => 'Manajemen Pengguna', 'items' => 'Barang', 'vendors' => 'Vendor', 'units' => 'Satuan', 'locations' => 'Lokasi', 'categories' => 'Kategori', 'departments' => 'Departemen', 'imports' => 'Import Master PN'];
+        $labels = ['home' => 'Dashboard', 'manual-data-in' => 'Data IN', 'procurement' => 'Pengadaan', 'monitoring' => 'Monitoring', 'material-requests' => 'Data OUT', 'refills' => 'Vendor Refill', 'incoming-refills' => 'Incoming Refill', 'stock-corrections' => 'Koreksi Stok', 'opening-balances' => 'Saldo Awal', 'shifts' => 'Pengaturan Shift', 'users' => 'Manajemen Pengguna', 'items' => 'Barang', 'vendors' => 'Vendor', 'units' => 'Satuan', 'locations' => 'Lokasi', 'categories' => 'Kategori', 'departments' => 'Departemen', 'imports' => 'Import Master PN'];
 
         return [
             ...parent::share($request),
@@ -38,6 +38,13 @@ class HandleInertiaRequests extends Middleware
                 'success' => $request->session()->get('success'),
             ],
             'routes' => [
+                'home' => route('home'),
+                'manualDataInIndex' => route('manual-data-in.index'),
+                'procurementIndex' => route('procurement.index'),
+                'monitoringTransactionsIndex' => route('monitoring.transactions.index'),
+                'monitoringShiftsIndex' => route('monitoring.shifts.index'),
+                'monitoringSystemStockIndex' => route('monitoring.system-stock.index'),
+                'monitoringReconciliationsIndex' => route('monitoring.reconciliations.index'),
                 'itemsIndex' => route('items.index'),
                 'vendorsIndex' => route('vendors.index'),
                 'locationsIndex' => route('locations.index'),

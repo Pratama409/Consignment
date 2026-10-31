@@ -73,7 +73,7 @@ onBeforeUnmount(() => {
                         <AppIcon name="menu" />
                     </button>
                     <div class="breadcrumb">
-                        <AppIcon name="layers" /><span>Master Data</span
+                        <AppIcon name="layers" /><span>Area Kerja</span
                         ><AppIcon name="chevronRight" /><strong>{{
                             page.props.navigation?.label ?? "Master Data"
                         }}</strong>

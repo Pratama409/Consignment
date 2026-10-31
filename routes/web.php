@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\IncomingRefillController;
 use App\Http\Controllers\Inventory\StockCorrectionController;
 use App\Http\Controllers\ManualDataInController;
@@ -91,7 +92,7 @@ Route::middleware(['auth', EnsureActiveUser::class])->group(function () {
     Route::get('/users/{user}/edit', [UserController::class, 'edit'])->whereUuid('user')->name('users.edit');
     Route::put('/users/{user}', [UserController::class, 'update'])->whereUuid('user')->name('users.update');
     Route::patch('/users/{user}/status', [UserController::class, 'status'])->whereUuid('user')->name('users.status');
-    Route::get('/', fn () => to_route('items.index'))->name('home');
+    Route::get('/', DashboardController::class)->name('home');
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
     Route::get('/master-data/satuan', [UnitController::class, 'index'])->name('units.index');
     Route::post('/master-data/satuan', [UnitController::class, 'store'])->name('units.store');
