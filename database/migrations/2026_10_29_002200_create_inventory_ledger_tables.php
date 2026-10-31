@@ -43,6 +43,19 @@ return new class extends Migration
             $table->unique(['source_type', 'source_id']);
         });
 
+        // One row per physical stock position: an internal item or a Vendor's item, at a location.
+        // Exactly one of item_id / vendor_item_id is set, so a consignment bucket reaches its item
+        // only through vendor_items and no fact is stored twice.
+        Schema::create('stock_buckets', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->foreignUuid('item_id')->nullable()->constrained()->restrictOnDelete();
+            $table->foreignUuid('vendor_item_id')->nullable()->constrained()->restrictOnDelete();
+            $table->foreignUuid('location_id')->constrained()->restrictOnDelete();
+            $table->timestamps();
+            $table->unique(['item_id', 'location_id']);
+            $table->unique(['vendor_item_id', 'location_id']);
+        });
+
         Schema::create('stock_ledger_entries', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->foreignUuid('stock_transaction_id')->constrained()->restrictOnDelete();
@@ -96,8 +109,25 @@ return new class extends Migration
         $table->string('bucket_key', 100);
     }
 
+    private function bucketGuards(): void
+    {
+        // vendor_items already guarantees a Vendor pair belongs to a CONSIGNMENT item, so only the
+        // internal side needs an ownership check here.
+        $shape = "NOT ((NEW.item_id IS NOT NULL AND NEW.vendor_item_id IS NULL AND EXISTS (SELECT 1 FROM items WHERE id = NEW.item_id AND ownership_type = 'STOCK'))
+            OR (NEW.item_id IS NULL AND NEW.vendor_item_id IS NOT NULL))";
+        $same = fn (string $column): string => DB::getDriverName() === 'mysql' ? "NEW.{$column} <=> OLD.{$column}" : "NEW.{$column} IS OLD.{$column}";
+        $identity = implode(' AND ', array_map($same, ['id', 'item_id', 'vendor_item_id', 'location_id']));
+
+        foreach (['INSERT', 'UPDATE'] as $event) {
+            $this->guard('stock_buckets_shape_'.strtolower($event), 'stock_buckets', $event, $shape, 'Invalid stock bucket');
+        }
+        $this->guard('stock_buckets_identity_update', 'stock_buckets', 'UPDATE', "NOT ({$identity})", 'Bucket identity is immutable');
+        $this->guard('stock_buckets_immutable_delete', 'stock_buckets', 'DELETE', '1 = 1', 'Stock buckets preserve inventory history');
+    }
+
     private function integrityGuards(): void
     {
+        $this->bucketGuards();
         $stockKey = DB::getDriverName() === 'mysql' ? "CONCAT('STOCK:', NEW.item_id, ':', NEW.location_id)" : "'STOCK:' || NEW.item_id || ':' || NEW.location_id";
         $consignmentKey = DB::getDriverName() === 'mysql' ? "CONCAT('CONSIGNMENT:', NEW.vendor_item_id, ':', NEW.location_id)" : "'CONSIGNMENT:' || NEW.vendor_item_id || ':' || NEW.location_id";
         // MySQL's default collation ignores case; normalized bucket keys must be exact on both engines.
@@ -172,6 +202,7 @@ return new class extends Migration
         Schema::dropIfExists('stock_lots');
         Schema::dropIfExists('stock_balances');
         Schema::dropIfExists('stock_ledger_entries');
+        Schema::dropIfExists('stock_buckets');
         Schema::dropIfExists('stock_transactions');
         Schema::dropIfExists('inventory_periods');
     }
