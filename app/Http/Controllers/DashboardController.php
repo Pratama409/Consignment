@@ -3,10 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\MaterialRequest;
-use App\Models\ProcurementRequirement;
-use App\Models\StockBalance;
 use App\Models\StockTransaction;
-use App\Models\VendorRefill;
+use App\Queries\DashboardAnalytics;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -17,15 +15,7 @@ class DashboardController extends Controller
     {
         $user = $request->user();
         $vendorId = $user->isVendor() ? $user->vendor_id : null;
-
-        $refills = VendorRefill::query()->whereNotIn('status', ['COMPLETED', 'CLOSED_PARTIAL', 'CANCELLED']);
-        $procurement = ProcurementRequirement::query()->whereNotIn('status', ['COMPLETE', 'VOID']);
-        $balances = StockBalance::query();
-        if ($vendorId) {
-            $refills->where('vendor_id', $vendorId);
-            $procurement->whereHas('vendorItem', fn ($query) => $query->where('vendor_id', $vendorId));
-            $balances->whereHas('bucket.vendorItem', fn ($query) => $query->where('vendor_id', $vendorId));
-        }
+        $analytics = DashboardAnalytics::for($vendorId);
 
         $recent = StockTransaction::query()
             ->withCount('ledgerEntries')
@@ -37,18 +27,40 @@ class DashboardController extends Controller
                 'id' => $transaction->id,
                 'number' => $transaction->transaction_no,
                 'type' => $transaction->type->value,
-                'posted_at' => $transaction->posted_at?->format('d/m/Y H:i'),
+                'posted_at' => $transaction->posted_at?->timezone('Asia/Makassar')->format('d/m/Y H:i'),
                 'lines' => $transaction->ledger_entries_count,
             ]);
 
         return Inertia::render('Dashboard', [
             'metrics' => [
-                'stock_buckets' => $balances->count(),
-                'open_refills' => $refills->count(),
+                ...$analytics->metrics(),
                 'active_requests' => $user->isVendor() ? null : MaterialRequest::active()->count(),
-                'procurement_outstanding' => $procurement->count(),
             ],
+            'lists' => $analytics->lists(),
+            'charts' => ['movement' => $analytics->movement(), 'composition' => $analytics->composition()],
+            'quick_links' => $this->quickLinks($user->isVendor()),
             'recent_transactions' => $user->isVendor() ? [] : $recent,
+            'generated_at' => now()->timezone('Asia/Makassar')->format('d/m/Y H:i'),
         ]);
+    }
+
+    /** @return list<array{label: string, icon: string, url: string}> */
+    private function quickLinks(bool $vendor): array
+    {
+        if ($vendor) {
+            return [
+                ['label' => 'Vendor Refill', 'icon' => 'truck', 'url' => route('refills.index')],
+                ['label' => 'Stock Sistem', 'icon' => 'warehouse', 'url' => route('monitoring.system-stock.index')],
+                ['label' => 'PR, PO & Dokumen', 'icon' => 'layers', 'url' => route('procurement.index')],
+            ];
+        }
+
+        return [
+            ['label' => 'Data IN', 'icon' => 'arrowDown', 'url' => route('manual-data-in.index')],
+            ['label' => 'Data OUT', 'icon' => 'box', 'url' => route('material-requests.index')],
+            ['label' => 'PR, PO & Dokumen', 'icon' => 'layers', 'url' => route('procurement.index')],
+            ['label' => 'Stock Sistem', 'icon' => 'warehouse', 'url' => route('monitoring.system-stock.index')],
+            ['label' => 'Stock Opname', 'icon' => 'checkCircle', 'url' => route('stock-opname.index')],
+        ];
     }
 }
