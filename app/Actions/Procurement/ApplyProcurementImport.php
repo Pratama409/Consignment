@@ -13,11 +13,13 @@ class ApplyProcurementImport
     public function handle(string $stage, array $rows): void
     {
         DB::transaction(function () use ($stage, $rows) {
-            foreach ($rows as $row) {
+            foreach (collect($rows)->groupBy('row_key') as $group) {
+                $row = $group->first();
                 $r = ProcurementRequirement::where('row_key', $row['row_key'])->lockForUpdate()->first();
                 if (! $r) {
                     throw ValidationException::withMessages(['file' => "Row key baris {$row['row']} tidak valid."]);
-                }$this->save->handle($r, $stage, [['document_no' => $row['document_no'], 'quantity' => $row['quantity']]]);
+                }
+                $this->save->handle($r, $stage, $group->map(fn ($line) => ['document_no' => $line['document_no'], 'quantity' => $line['quantity']])->values()->all());
             }
         });
     }

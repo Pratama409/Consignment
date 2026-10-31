@@ -19,7 +19,7 @@ class DashboardController extends Controller
         $vendorId = $user->isVendor() ? $user->vendor_id : null;
 
         $refills = VendorRefill::query()->whereNotIn('status', ['COMPLETED', 'CLOSED_PARTIAL', 'CANCELLED']);
-        $procurement = ProcurementRequirement::query()->whereNotIn('status', ['COMPLETED', 'CANCELLED']);
+        $procurement = ProcurementRequirement::query()->whereNotIn('status', ['COMPLETE', 'VOID']);
         $balances = StockBalance::query();
         if ($vendorId) {
             $refills->where('vendor_id', $vendorId);

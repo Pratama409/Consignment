@@ -20,6 +20,9 @@ class CloseOperationalShift
 
         return DB::transaction(function () use ($shift, $actor): ShiftRecapSnapshot {
             $locked = OperationalShift::query()->lockForUpdate()->findOrFail($shift->id);
+            if ($locked->status->value === 'closed') {
+                throw ValidationException::withMessages(['shift' => 'Shift ini sudah ditutup.']);
+            }
             $summary = $this->generate->handle($locked);
             $version = (int) ShiftRecapSnapshot::where('operational_shift_id', $locked->id)->max('version') + 1;
             $snapshot = ShiftRecapSnapshot::create(['operational_shift_id' => $locked->id, 'version' => $version, 'summary' => $summary, 'checksum' => hash('sha256', json_encode($summary, JSON_UNESCAPED_SLASHES)), 'generated_by' => $actor->id, 'closed_at' => now()]);
