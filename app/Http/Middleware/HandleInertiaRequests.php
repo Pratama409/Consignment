@@ -54,6 +54,7 @@ class HandleInertiaRequests extends Middleware
                 'monitoringReconciliationsIndex' => route('monitoring.reconciliations.index'),
                 'itemsIndex' => route('items.index'),
                 'vendorsIndex' => route('vendors.index'),
+                'vendorsImport' => route('vendors.import.create'),
                 'locationsIndex' => route('locations.index'),
                 'categoriesIndex' => route('categories.index'),
                 'departmentsIndex' => route('departments.index'),

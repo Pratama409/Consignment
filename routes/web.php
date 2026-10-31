@@ -10,6 +10,7 @@ use App\Http\Controllers\MasterData\ItemController;
 use App\Http\Controllers\MasterData\ItemExportController;
 use App\Http\Controllers\MasterData\ReferenceController;
 use App\Http\Controllers\MasterData\UnitController;
+use App\Http\Controllers\MasterData\VendorImportController;
 use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\Monitoring\ShiftRecapController;
 use App\Http\Controllers\Monitoring\SystemStockController;
@@ -98,6 +99,10 @@ Route::middleware(['auth', EnsureActiveUser::class])->group(function () {
     Route::post('/master-data/satuan', [UnitController::class, 'store'])->name('units.store');
     Route::put('/master-data/satuan/{unit}', [UnitController::class, 'update'])->name('units.update');
     Route::patch('/master-data/satuan/{unit}/status', [UnitController::class, 'status'])->name('units.status');
+    Route::get('/master-data/vendor/import', [VendorImportController::class, 'create'])->name('vendors.import.create');
+    Route::post('/master-data/vendor/import', [VendorImportController::class, 'store'])->name('vendors.import.store');
+    Route::get('/master-data/vendor/import/{import}', [VendorImportController::class, 'create'])->whereUuid('import')->name('vendors.import.show');
+    Route::post('/master-data/vendor/import/{import}/confirm', [VendorImportController::class, 'confirm'])->whereUuid('import')->name('vendors.import.confirm');
     foreach (['vendors' => 'vendor', 'locations' => 'lokasi', 'categories' => 'kategori', 'departments' => 'departemen'] as $resource => $path) {
         Route::get('/master-data/'.$path, [ReferenceController::class, 'index'])->defaults('resource', $resource)->name($resource.'.index');
         Route::post('/master-data/'.$path, [ReferenceController::class, 'store'])->defaults('resource', $resource)->name($resource.'.store');
