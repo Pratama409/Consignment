@@ -13,7 +13,7 @@ class WorkbookExporter
         $sheet->fromArray(['ROW_KEY', 'VENDOR', 'PART_NUMBER', 'ITEM', 'ISSUED_QTY', 'DOCUMENT_NO', 'DOCUMENT_QTY'], null, 'A1');
         $row = 2;
         foreach ($requirements as $r) {
-            $sheet->fromArray([$r->row_key, $r->vendorItem->vendor->vendor_name, $r->issueLine->requestLine->item->part_number, $r->issueLine->requestLine->item->item_name, (int) $r->required_quantity, '', ''], null, "A{$row}");
+            $sheet->fromArray([$r->row_key, $r->vendorItem->vendor->vendor_name, $r->issueLine->requestLine->item->part_number, $r->issueLine->requestLine->item->item_name, $r->requiredQuantity(), '', ''], null, "A{$row}");
             $row++;
         }
 

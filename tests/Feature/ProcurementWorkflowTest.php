@@ -19,6 +19,7 @@ use App\Models\VendorItem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class ProcurementWorkflowTest extends TestCase
@@ -47,6 +48,33 @@ class ProcurementWorkflowTest extends TestCase
         $this->assertSame('COMPLETE', $requirement->fresh()->status);
     }
 
+    public function test_required_quantity_comes_from_issue_line(): void
+    {
+        [$requirement] = $this->requirement();
+
+        $this->assertSame(10, $requirement->requiredQuantity());
+        $this->assertSame($requirement->issueLine->vendor_item_id, $requirement->vendorItem->id);
+    }
+
+    public function test_reference_total_cannot_exceed_issue_line_quantity(): void
+    {
+        [$requirement] = $this->requirement();
+
+        $this->expectException(ValidationException::class);
+        app(SaveProcurementReference::class)->handle($requirement, 'RESERVATION', [['document_no' => 'RES-OVER', 'quantity' => 11]]);
+    }
+
+    public function test_vendor_cannot_open_other_vendor_requirement(): void
+    {
+        [$requirement] = $this->requirement();
+        $other = Vendor::create(['vendor_code' => 'OTHER', 'vendor_name' => 'Other Vendor']);
+
+        $this->actingAs(User::factory()->vendor($other)->create())->get('/procurement')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page->has('requirements.data', 0));
+        $this->actingAs(User::factory()->vendor($requirement->vendorItem->vendor)->create())->get('/procurement')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page->has('requirements.data', 1));
+    }
+
     private function requirement(): array
     {
         $admin = User::factory()->admin()->create();
@@ -61,6 +89,6 @@ class ProcurementWorkflowTest extends TestCase
         $issue = MaterialIssue::create(['issue_no' => 'ISS-PROC', 'material_request_id' => $request->id, 'status' => 'POSTED', 'issued_at' => now(), 'issued_by' => $admin->id, 'receiver_name' => 'Tester', 'idempotency_key' => (string) Str::uuid()]);
         $issueLine = MaterialIssueLine::create(['material_issue_id' => $issue->id, 'material_request_line_id' => $requestLine->id, 'vendor_item_id' => $vendorItem->id, 'location_id' => $location->id, 'issued_quantity' => 10]);
 
-        return [ProcurementRequirement::create(['row_key' => (string) Str::uuid(), 'material_issue_line_id' => $issueLine->id, 'vendor_item_id' => $vendorItem->id, 'item_id' => $item->id, 'location_id' => $location->id, 'required_quantity' => 10]), $admin];
+        return [ProcurementRequirement::create(['row_key' => (string) Str::uuid(), 'material_issue_line_id' => $issueLine->id]), $admin];
     }
 }

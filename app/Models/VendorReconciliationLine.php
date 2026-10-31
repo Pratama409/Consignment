@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 
 class VendorReconciliationLine extends Model
 {
@@ -27,9 +28,9 @@ class VendorReconciliationLine extends Model
         return $this->belongsTo(VendorItem::class);
     }
 
-    public function item(): BelongsTo
+    public function item(): HasOneThrough
     {
-        return $this->belongsTo(Item::class);
+        return $this->hasOneThrough(Item::class, VendorItem::class, 'id', 'id', 'vendor_item_id', 'item_id');
     }
 
     public function location(): BelongsTo

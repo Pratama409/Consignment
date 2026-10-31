@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 
 class ProcurementRequirement extends Model
 {
@@ -18,9 +19,15 @@ class ProcurementRequirement extends Model
         return $this->belongsTo(MaterialIssueLine::class, 'material_issue_line_id');
     }
 
-    public function vendorItem(): BelongsTo
+    /** The Vendor pair, location and quantity of a requirement are those of its issue line. */
+    public function vendorItem(): HasOneThrough
     {
-        return $this->belongsTo(VendorItem::class);
+        return $this->hasOneThrough(VendorItem::class, MaterialIssueLine::class, 'id', 'id', 'material_issue_line_id', 'vendor_item_id');
+    }
+
+    public function requiredQuantity(): int
+    {
+        return (int) $this->issueLine->issued_quantity;
     }
 
     public function documentLines(): HasMany

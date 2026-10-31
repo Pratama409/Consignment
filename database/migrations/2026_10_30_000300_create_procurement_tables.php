@@ -12,10 +12,7 @@ return new class extends Migration
             $t->uuid('id')->primary();
             $t->uuid('row_key')->unique();
             $t->foreignUuid('material_issue_line_id')->unique()->constrained()->restrictOnDelete();
-            $t->foreignUuid('vendor_item_id')->constrained()->restrictOnDelete();
-            $t->foreignUuid('item_id')->constrained()->restrictOnDelete();
-            $t->foreignUuid('location_id')->constrained()->restrictOnDelete();
-            $t->decimal('required_quantity', 18, 4);
+            // Vendor pair, item, location and required quantity all come from the issue line.
             $t->enum('status', ['RESERVATION_PENDING', 'PR_PENDING', 'VALIDATION_PENDING', 'PO_PENDING', 'COMPLETE', 'REQUIRES_REVIEW', 'VOID'])->default('RESERVATION_PENDING')->index();
             $t->timestamps();
         });

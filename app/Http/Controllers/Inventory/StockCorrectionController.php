@@ -25,7 +25,7 @@ class StockCorrectionController extends Controller
         $this->viewable($request);
         $input = $request->validate(['q' => ['nullable', 'string', 'max:100']]);
         $search = trim($input['q'] ?? '');
-        $adjustments = StockAdjustment::with(['item', 'location', 'vendorItem.vendor', 'requester', 'reviewer'])->latest()->paginate(20)->withQueryString()->through(fn ($record) => [
+        $adjustments = StockAdjustment::withResolvedItem()->with(['location', 'vendorItem.vendor', 'requester', 'reviewer'])->latest()->paginate(20)->withQueryString()->through(fn ($record) => [
             'id' => $record->id, 'status' => $record->status->value, 'item' => $record->item->item_code.' · '.$record->item->item_name,
             'vendor' => $record->vendorItem?->vendor?->vendor_name, 'location' => $record->location->location_code,
             'direction' => $record->direction->value, 'quantity' => $record->quantity, 'reason' => $record->reason,

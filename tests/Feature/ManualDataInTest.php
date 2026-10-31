@@ -15,7 +15,9 @@ use App\Models\Vendor;
 use App\Models\VendorItem;
 use Carbon\CarbonImmutable;
 use Database\Seeders\MasterDataSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -38,6 +40,32 @@ class ManualDataInTest extends TestCase
         foreach (['manual_receipts', 'manual_receipt_lines'] as $table) {
             $this->assertTrue(Schema::hasTable($table));
             $this->assertTrue(Schema::hasColumn($table, 'id'));
+        }
+    }
+
+    public function test_consignment_receipt_line_rejects_item_id_and_stock_line_requires_it(): void
+    {
+        [$warehouse, $stock, $consignment, $relation, $location] = $this->scenario();
+        $receipt = app(PostManualReceipt::class)->handle($warehouse, 'Urgent', null, 'Receiver', CarbonImmutable::now(), [
+            ['item_id' => $stock->id, 'location_id' => $location->id, 'quantity' => 2],
+            ['item_id' => $consignment->id, 'vendor_item_id' => $relation->id, 'location_id' => $location->id, 'quantity' => 3],
+        ], (string) Str::uuid());
+
+        $consignmentLine = $receipt->lines->firstWhere('vendor_item_id', $relation->id);
+        $stockLine = $receipt->lines->firstWhere('vendor_item_id', null);
+        $this->assertNull($consignmentLine->item_id);
+        $this->assertSame($consignment->id, $consignmentLine->item->id);
+        $this->assertSame($stock->id, $stockLine->item_id);
+        $this->assertSame($stock->id, $stockLine->item->id);
+
+        $base = ['manual_receipt_id' => $receipt->id, 'location_id' => $location->id, 'received_quantity' => '1.0000', 'created_at' => now(), 'updated_at' => now()];
+        foreach ([['item_id' => $consignment->id, 'vendor_item_id' => $relation->id], ['item_id' => null, 'vendor_item_id' => null]] as $invalid) {
+            try {
+                DB::table('manual_receipt_lines')->insert(['id' => (string) Str::uuid(), ...$base, ...$invalid]);
+                $this->fail('Expected exactly one of item_id or vendor_item_id.');
+            } catch (QueryException) {
+                $this->addToAssertionCount(1);
+            }
         }
     }
 

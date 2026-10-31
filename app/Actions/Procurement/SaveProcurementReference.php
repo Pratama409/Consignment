@@ -32,7 +32,7 @@ class SaveProcurementReference
                     throw ValidationException::withMessages(['reference' => 'Nomor dan quantity bulat wajib diisi.']);
                 }$total += (int) $line['quantity'];
             }
-            if ($total > (int) $locked->required_quantity) {
+            if ($total > $locked->requiredQuantity()) {
                 throw ValidationException::withMessages(['quantity' => 'Total referensi melebihi Data Out.']);
             }
             $previousStage = ['PO' => 'PR', 'GRGI' => 'PO'][$stage] ?? null;
@@ -43,7 +43,7 @@ class SaveProcurementReference
             $locked->documentLines()->where('stage', $stage)->update(['is_active' => false]);
             foreach ($lines as $i => $line) {
                 $locked->documentLines()->create(['stage' => $stage, 'version' => $version, 'line_no' => $i + 1, 'document_no' => $line['document_no'], 'covered_quantity' => $line['quantity'], 'is_active' => true]);
-            }$locked->update(['status' => $stage === 'RESERVATION' ? 'PR_PENDING' : ($stage === 'PR' ? 'VALIDATION_PENDING' : ($stage === 'GRGI' && $total === (int) $locked->required_quantity ? 'COMPLETE' : $locked->status))]);
+            }$locked->update(['status' => $stage === 'RESERVATION' ? 'PR_PENDING' : ($stage === 'PR' ? 'VALIDATION_PENDING' : ($stage === 'GRGI' && $total === $locked->requiredQuantity() ? 'COMPLETE' : $locked->status))]);
 
             return $locked->fresh('documentLines');
         });

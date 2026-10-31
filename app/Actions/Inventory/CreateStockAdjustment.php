@@ -43,7 +43,7 @@ class CreateStockAdjustment
 
         return DB::transaction(function () use ($item, $vendorItem, $location, $line, $data, $requester): StockAdjustment {
             $adjustment = StockAdjustment::create([
-                'item_id' => $item->id,
+                'item_id' => $vendorItem === null ? $item->id : null,
                 'vendor_item_id' => $vendorItem?->id,
                 'location_id' => $location->id,
                 'direction' => $line->direction,

@@ -27,18 +27,24 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->uuid('manual_receipt_id');
             $table->foreign('manual_receipt_id', 'manual_receipt_line_receipt_fk')->references('id')->on('manual_receipts')->cascadeOnDelete();
-            $table->foreignUuid('item_id')->constrained()->restrictOnDelete();
+            // Exactly one of item_id (internal STOCK) or vendor_item_id (Vendor consignment); the item of a Vendor pair is read through it.
+            $table->foreignUuid('item_id')->nullable()->constrained()->restrictOnDelete();
             $table->foreignUuid('vendor_item_id')->nullable()->constrained()->restrictOnDelete();
             $table->foreignUuid('location_id')->constrained()->restrictOnDelete();
             $table->decimal('received_quantity', 18, 4);
             $table->timestamps();
-            $table->unique(['manual_receipt_id', 'item_id', 'vendor_item_id', 'location_id'], 'manual_receipt_line_bucket_unique');
+            $table->unique(['manual_receipt_id', 'item_id', 'location_id'], 'manual_receipt_line_item_unique');
+            $table->unique(['manual_receipt_id', 'vendor_item_id', 'location_id'], 'manual_receipt_line_vendor_item_unique');
         });
         if (DB::getDriverName() === 'sqlite') {
+            foreach (['INSERT', 'UPDATE'] as $event) {
+                DB::unprepared('CREATE TRIGGER manual_receipt_lines_owner_'.strtolower($event).' BEFORE '.$event." ON manual_receipt_lines WHEN (NEW.item_id IS NULL) = (NEW.vendor_item_id IS NULL) BEGIN SELECT RAISE(ABORT, 'Receipt line needs exactly one of item or vendor item'); END");
+            }
             foreach (['INSERT', 'UPDATE'] as $event) {
                 DB::unprepared('CREATE TRIGGER manual_receipt_lines_quantity_whole_'.strtolower($event).' BEFORE '.$event." ON manual_receipt_lines WHEN NEW.received_quantity <= 0 OR NEW.received_quantity != CAST(NEW.received_quantity AS INTEGER) BEGIN SELECT RAISE(ABORT, 'received_quantity must be a positive whole number'); END");
             }
         } else {
+            DB::statement('ALTER TABLE manual_receipt_lines ADD CONSTRAINT manual_receipt_line_owner CHECK ((item_id IS NULL) <> (vendor_item_id IS NULL))');
             DB::statement('ALTER TABLE manual_receipt_lines ADD CONSTRAINT manual_receipt_line_quantity_whole CHECK (received_quantity > 0 AND received_quantity = FLOOR(received_quantity))');
         }
         DB::table('number_sequences')->insertOrIgnore(['id' => (string) Str::uuid7(), 'name' => 'manual_receipt', 'last_value' => 0, 'created_at' => now(), 'updated_at' => now()]);

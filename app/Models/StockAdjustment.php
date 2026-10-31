@@ -4,13 +4,14 @@ namespace App\Models;
 
 use App\Enums\StockAdjustmentStatus;
 use App\Enums\StockDirection;
+use App\Models\Concerns\ResolvesDirectOrVendorItem;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class StockAdjustment extends Model
 {
-    use HasUuids;
+    use HasUuids, ResolvesDirectOrVendorItem;
 
     protected $fillable = ['status', 'item_id', 'vendor_item_id', 'location_id', 'direction', 'quantity', 'reason', 'review_note', 'requested_by', 'reviewed_by', 'reviewed_at', 'stock_transaction_id'];
 
@@ -19,11 +20,6 @@ class StockAdjustment extends Model
     protected function casts(): array
     {
         return ['status' => StockAdjustmentStatus::class, 'direction' => StockDirection::class, 'quantity' => 'decimal:4', 'reviewed_at' => 'immutable_datetime'];
-    }
-
-    public function item(): BelongsTo
-    {
-        return $this->belongsTo(Item::class);
     }
 
     public function vendorItem(): BelongsTo

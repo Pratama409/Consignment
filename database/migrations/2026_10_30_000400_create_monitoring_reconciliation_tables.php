@@ -43,7 +43,6 @@ return new class extends Migration
             $table->uuid('vendor_reconciliation_id');
             $table->foreign('vendor_reconciliation_id', 'vendor_ba_line_header_fk')->references('id')->on('vendor_reconciliations')->cascadeOnDelete();
             $table->foreignUuid('vendor_item_id')->constrained()->restrictOnDelete();
-            $table->foreignUuid('item_id')->constrained()->restrictOnDelete();
             $table->foreignUuid('location_id')->constrained()->restrictOnDelete();
             $table->decimal('opening_quantity', 18, 4);
             $table->decimal('in_quantity', 18, 4);

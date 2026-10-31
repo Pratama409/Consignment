@@ -41,7 +41,7 @@ class PostStockAdjustment
                 $admin->id,
                 $idempotencyKey,
                 $record->reason,
-                [new StockPostingLineData($record->item_id, $record->vendor_item_id, $record->location_id, $record->direction, $record->quantity)],
+                [new StockPostingLineData($record->item->id, $record->vendor_item_id, $record->location_id, $record->direction, $record->quantity)],
             );
             $transaction = $record->direction === StockDirection::In ? $this->stockIn->handle($data) : $this->stockOut->handle($data);
             $record->refresh()->update(['status' => StockAdjustmentStatus::Posted, 'stock_transaction_id' => $transaction->id]);

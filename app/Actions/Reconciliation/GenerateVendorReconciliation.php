@@ -29,7 +29,7 @@ class GenerateVendorReconciliation
             $version = (int) ($previous?->version ?? 0) + 1;
             $ba = VendorReconciliation::create(['reconciliation_no' => sprintf('BA/%s/%s/%02d', $vendor->vendor_code, $start->format('Ym'), $version), 'vendor_id' => $vendor->id, 'period_start' => $start->toDateString(), 'period_end' => $end->toDateString(), 'version' => $version, 'status' => 'DRAFT', 'supersedes_id' => $previous?->id, 'source_cutoff_at' => now(), 'created_by' => $admin->id]);
             foreach ($this->source->forPeriod($vendor, $start, $end) as $row) {
-                $ba->lines()->create(['vendor_item_id' => $row['vendor_item_id'], 'item_id' => $row['item_id'], 'location_id' => $row['location_id'], 'opening_quantity' => $row['opening'], 'in_quantity' => $row['in'], 'out_quantity' => $row['out'], 'adjustment_quantity' => $row['adjustment'], 'system_closing_quantity' => $row['closing'], 'references' => ['transaction_ids' => $row['transaction_ids']]]);
+                $ba->lines()->create(['vendor_item_id' => $row['vendor_item_id'], 'location_id' => $row['location_id'], 'opening_quantity' => $row['opening'], 'in_quantity' => $row['in'], 'out_quantity' => $row['out'], 'adjustment_quantity' => $row['adjustment'], 'system_closing_quantity' => $row['closing'], 'references' => ['transaction_ids' => $row['transaction_ids']]]);
             }
 
             return $ba->load('lines');

@@ -21,6 +21,8 @@ use App\Models\StockItemLocation;
 use App\Models\StockLot;
 use App\Models\Unit;
 use App\Models\User;
+use App\Models\Vendor;
+use App\Models\VendorItem;
 use Carbon\CarbonImmutable;
 use Database\Seeders\MasterDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -95,6 +97,20 @@ class StockCorrectionTest extends TestCase
 
         app(PostStockOut::class)->handle($this->posting('1.0000', StockDirection::Out, StockTransactionType::MaterialIssue));
         $this->expectValidation(fn () => app(ReverseStockTransaction::class)->handle($in, $this->admin, 'Tidak boleh', 'reverse:consumed-in'));
+    }
+
+    public function test_adjustment_item_resolves_from_vendor_item_for_consignment(): void
+    {
+        $consignment = Item::create(['item_code' => 'CORR-C-'.Str::random(6), 'part_number' => 'PN-CORR-C', 'item_name' => 'Consignment correction', 'ownership_type' => 'CONSIGNMENT', 'tracking_type' => 'QUANTITY', 'unit_id' => Unit::firstOrFail()->id, 'minimum_stock' => '0.0000']);
+        $pair = VendorItem::create(['item_id' => $consignment->id, 'vendor_id' => Vendor::create(['vendor_code' => 'CORR-V', 'vendor_name' => 'Correction Vendor'])->id, 'location_id' => $this->location->id]);
+
+        $adjustment = app(CreateStockAdjustment::class)->handle([...$this->adjustmentData('IN'), 'item_id' => $consignment->id, 'vendor_item_id' => $pair->id], $this->warehouse);
+        $this->assertNull($adjustment->item_id);
+        $this->assertSame($consignment->id, $adjustment->item->id);
+
+        $approved = app(ReviewStockAdjustment::class)->handle($adjustment, true, 'Disetujui', $this->admin);
+        app(PostStockAdjustment::class)->handle($approved, $this->admin, 'adjustment:'.$approved->id);
+        $this->assertSame('2.5000', StockBalance::whereHas('bucket', fn ($query) => $query->where('vendor_item_id', $pair->id))->sole()->quantity);
     }
 
     private function adjustmentData(string $direction, string $reason = 'Selisih hasil hitung fisik'): array

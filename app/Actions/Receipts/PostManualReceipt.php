@@ -63,7 +63,7 @@ class PostManualReceipt
                 $seen[$bucket] = true;
                 $quantity = (string) $input['quantity'];
                 $postingLines[] = new StockPostingLineData($item->id, $vendorItemId, $locationId, StockDirection::In, $quantity);
-                $receiptLines[] = ['item_id' => $item->id, 'vendor_item_id' => $vendorItemId, 'location_id' => $locationId, 'received_quantity' => $quantity];
+                $receiptLines[] = ['item_id' => $vendorItemId === null ? $item->id : null, 'vendor_item_id' => $vendorItemId, 'location_id' => $locationId, 'received_quantity' => $quantity];
             }
             $sequence = $this->numbers->next('manual_receipt');
             $receipt = ManualReceipt::create(['receipt_no' => sprintf('DIN/%s/%04d', now()->format('Ymd'), $sequence), 'vendor_do_number' => filled($doNumber) ? trim($doNumber) : null, 'reason' => trim($reason), 'receiver_name' => trim($receiver), 'received_at' => $receivedAt->utc(), 'received_by' => $warehouse->id, 'status' => 'DRAFT', 'idempotency_key' => $idempotencyKey]);
