@@ -37,3 +37,34 @@ test("dashboard has no horizontal page scroll on a phone and the sidebar groups 
     await expect(group).toHaveAttribute("aria-expanded", "true");
     await expect(drawer.getByRole("link", { name: "PR, PO & Dokumen" })).toBeVisible();
 });
+
+test("the desktop sidebar collapses to icons, keeps labels accessible and remembers the choice", async ({ page }) => {
+    await login(page, "admin@browser.test");
+    await page.goto("/");
+    const sidebar = page.locator(".desktop-sidebar");
+    await expect(sidebar).toHaveCSS("width", "272px");
+
+    await page.getByRole("button", { name: "Ciutkan sidebar" }).click();
+    await expect(page.locator(".app-shell")).toHaveAttribute("data-sidebar", "collapsed");
+    await expect(sidebar).toHaveCSS("width", "84px");
+    await expect(sidebar.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
+    await expect(sidebar.getByRole("link", { name: "Dashboard", exact: true })).toHaveAttribute("title", "Dashboard");
+
+    await page.reload();
+    await expect(page.locator(".app-shell")).toHaveAttribute("data-sidebar", "collapsed");
+    await page.getByRole("button", { name: "Perluas sidebar" }).click();
+    await expect(sidebar).toHaveCSS("width", "272px");
+});
+
+test("a slow page-to-page visit shows a skeleton and then the page", async ({ page }) => {
+    await login(page, "admin@browser.test");
+    await page.goto("/");
+    await page.route("**/monitoring/system-stock", async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        await route.continue();
+    });
+    await page.getByRole("navigation", { name: "Pintasan" }).getByRole("link", { name: "Stock Sistem" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Memuat halaman" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Stock", { timeout: 10000 });
+    await expect(page.getByRole("status").filter({ hasText: "Memuat halaman" })).toHaveCount(0);
+});

@@ -4,6 +4,7 @@ import { Link, usePage } from "@inertiajs/vue3";
 import AppIcon from "./AppIcon.vue";
 
 const emit = defineEmits(["navigate"]);
+const props = defineProps({ compact: { type: Boolean, default: false } });
 const page = usePage();
 const user = computed(() => page.props.auth.user);
 const internal = computed(() => user.value?.role !== "vendor");
@@ -83,14 +84,15 @@ const groupBadge = (group) => group.items.reduce((sum, item) => sum + (item.badg
 
 // A group is open while it holds the current page; the user can open or close the others.
 const manual = reactive({});
-const isOpen = (group) => manual[group.label] ?? holdsCurrent(group);
+// In compact mode every item is listed, so groups are always open.
+const isOpen = (group) => props.compact || (manual[group.label] ?? holdsCurrent(group));
 const toggle = (group) => {
     manual[group.label] = !isOpen(group);
 };
 </script>
 
 <template>
-    <div class="sidebar-content">
+    <div class="sidebar-content" :class="{ 'sidebar-content--compact': compact }">
         <div class="sidebar-brand">
             <span class="sidebar-brand__mark"><AppIcon name="warehouse" /></span>
             <div>
@@ -107,6 +109,7 @@ const toggle = (group) => {
                     :class="{ 'nav-group-toggle--current': holdsCurrent(group) }"
                     :aria-expanded="isOpen(group)"
                     :aria-controls="`nav-${group.label}`"
+                    :tabindex="compact ? -1 : undefined"
                     @click="toggle(group)"
                 >
                     <span class="nav-group-toggle__icon"><AppIcon :name="group.icon" /></span>
@@ -123,6 +126,8 @@ const toggle = (group) => {
                             class="nav-item"
                             :class="{ 'nav-item--active': isActive(item) }"
                             :aria-current="isActive(item) ? 'page' : undefined"
+                            :title="compact ? item.label : undefined"
+                            :aria-label="compact ? item.label : undefined"
                             @click="emit('navigate')"
                         >
                             <span class="nav-item__icon"><AppIcon :name="item.icon" /></span>
@@ -145,7 +150,7 @@ const toggle = (group) => {
                     ><small>{{ user.role_label }}</small>
                 </div>
             </div>
-            <Link :href="routes.logout" method="post" as="button" class="sidebar-logout"><AppIcon name="logout" /><span>Keluar</span></Link>
+            <Link :href="routes.logout" method="post" as="button" class="sidebar-logout" :aria-label="compact ? 'Keluar' : undefined" :title="compact ? 'Keluar' : undefined"><AppIcon name="logout" /><span>Keluar</span></Link>
         </div>
     </div>
 </template>

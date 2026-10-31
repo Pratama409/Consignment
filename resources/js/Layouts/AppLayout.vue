@@ -4,12 +4,26 @@ import { router, usePage } from "@inertiajs/vue3";
 import AppIcon from "../Components/AppIcon.vue";
 import AppSidebar from "../Components/AppSidebar.vue";
 import BaseDialog from "../Components/BaseDialog.vue";
+import PageSkeleton from "../Components/ui/PageSkeleton.vue";
 import ThemeToggle from "../Components/ui/ThemeToggle.vue";
+import { useSidebar } from "../Composables/useSidebar";
 
 const page = usePage();
 const navigationOpen = ref(false);
 const flashDismissed = ref(false);
 const loadError = ref("");
+const loading = ref(false);
+const { collapsed, toggle } = useSidebar();
+const animating = ref(false);
+let loadingTimer;
+let animationTimer;
+// Animate the width change only for the user's own toggle, so a window resize never lags behind its media query.
+function toggleSidebar() {
+    animating.value = true;
+    clearTimeout(animationTimer);
+    animationTimer = setTimeout(() => (animating.value = false), 350);
+    toggle();
+}
 const removeListeners = [];
 let desktopQuery;
 
@@ -25,6 +39,16 @@ watch(
 );
 onMounted(() => {
     removeListeners.push(
+        // A page-to-page visit shows a skeleton after a short delay; form posts and in-page searches keep their content.
+        router.on("start", (event) => {
+            const visit = event.detail.visit;
+            const navigates = visit.method === "get" && !visit.preserveState && !(visit.only?.length > 0);
+            if (navigates) loadingTimer = setTimeout(() => (loading.value = true), 150);
+        }),
+        router.on("finish", () => {
+            clearTimeout(loadingTimer);
+            loading.value = false;
+        }),
         router.on("networkError", (event) => {
             event.preventDefault();
             loadError.value =
@@ -45,15 +69,17 @@ onMounted(() => {
     desktopQuery.addEventListener("change", closeOnDesktop);
 });
 onBeforeUnmount(() => {
+    clearTimeout(loadingTimer);
+    clearTimeout(animationTimer);
     desktopQuery?.removeEventListener("change", closeOnDesktop);
     removeListeners.forEach((remove) => remove());
 });
 </script>
 
 <template>
-    <div class="app-shell">
+    <div class="app-shell" :class="{ 'is-animating': animating }" :data-sidebar="collapsed ? 'collapsed' : 'expanded'">
         <a href="#main-content" class="skip-link">Lewati ke konten utama</a>
-        <aside class="desktop-sidebar"><AppSidebar /></aside>
+        <aside class="desktop-sidebar"><AppSidebar :compact="collapsed" /></aside>
         <BaseDialog
             :open="navigationOpen"
             title="Navigasi"
@@ -70,6 +96,16 @@ onBeforeUnmount(() => {
                         aria-label="Buka navigasi"
                         :aria-expanded="navigationOpen"
                         @click="navigationOpen = true"
+                    >
+                        <AppIcon name="menu" />
+                    </button>
+                    <button
+                        type="button"
+                        class="icon-button sidebar-toggle"
+                        :aria-pressed="collapsed"
+                        :aria-label="collapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'"
+                        :title="collapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'"
+                        @click="toggleSidebar"
                     >
                         <AppIcon name="menu" />
                     </button>
@@ -116,7 +152,8 @@ onBeforeUnmount(() => {
                         Muat ulang
                     </button>
                 </div>
-                <slot />
+                <PageSkeleton v-if="loading" />
+                <div v-show="!loading"><slot /></div>
             </main>
             <footer class="workspace-footer">
                 Warehouse System <span aria-hidden="true">·</span> Consignment
