@@ -1,2 +1,61 @@
-<script setup>import{Head}from'@inertiajs/vue3';import AppLayout from'../../../Layouts/AppLayout.vue';import PageBanner from'../../../Components/PageBanner.vue';import Pagination from'../../../Components/Pagination.vue';defineOptions({layout:AppLayout});defineProps({balance:Object,ledger:Object,lots:Array});</script>
-<template><Head :title="balance.item"/><div class="units-page"><PageBanner :title="balance.item" :description="`${balance.vendor} · ${balance.location} · Saldo ${balance.quantity} ${balance.unit}`" icon="warehouse"/><section class="surface-card"><h2>Lot tersedia</h2><div class="table-scroll"><table class="data-table"><thead><tr><th>Diterima</th><th>Awal</th><th>Sisa</th></tr></thead><tbody><tr v-for="lot in lots" :key="lot.id"><td>{{lot.received_at}}</td><td>{{lot.original_quantity}}</td><td>{{lot.remaining_quantity}}</td></tr></tbody></table></div></section><section class="surface-card"><h2>Ledger</h2><div class="table-scroll"><table class="data-table"><thead><tr><th>Transaksi</th><th>Waktu</th><th>Qty</th></tr></thead><tbody><tr v-for="entry in ledger.data" :key="entry.id"><td>{{entry.transaction?.transaction_no}}</td><td>{{entry.physical_occurred_at}}</td><td>{{entry.quantity}}</td></tr></tbody></table></div><Pagination :paginator="ledger" noun="ledger"/></section></div></template>
+<script setup>
+import { Head } from "@inertiajs/vue3";
+import AppLayout from "../../../Layouts/AppLayout.vue";
+import PageBanner from "../../../Components/PageBanner.vue";
+import Pagination from "../../../Components/Pagination.vue";
+defineOptions({ layout: AppLayout });
+defineProps({ balance: Object, ledger: Object, lots: Array });
+</script>
+<template>
+    <Head :title="balance.item" />
+    <div class="units-page">
+        <PageBanner
+            :title="balance.item"
+            :description="`${balance.vendor} · ${balance.location} · Saldo ${balance.quantity} ${balance.unit}`"
+            icon="warehouse"
+        />
+        <section class="surface-card">
+            <h2>Lot tersedia</h2>
+            <div class="table-scroll">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Diterima</th>
+                            <th>Awal</th>
+                            <th>Sisa</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="lot in lots" :key="lot.id">
+                            <td>{{ lot.received_at }}</td>
+                            <td>{{ lot.original_quantity }}</td>
+                            <td>{{ lot.remaining_quantity }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <section class="surface-card">
+            <h2>Ledger</h2>
+            <div class="table-scroll">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Transaksi</th>
+                            <th>Waktu</th>
+                            <th>Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="entry in ledger.data" :key="entry.id">
+                            <td>{{ entry.transaction?.transaction_no }}</td>
+                            <td>{{ entry.physical_occurred_at }}</td>
+                            <td>{{ entry.quantity }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <Pagination :paginator="ledger" noun="ledger" />
+        </section>
+    </div>
+</template>
