@@ -79,6 +79,10 @@ class VendorImportController extends Controller
                 if ($row['action'] === 'UPDATE') {
                     Vendor::findOrFail($row['vendor_id'])->update(['pic_name' => $row['pic_name']]);
                 } else {
+                    $duplicateName = Vendor::all()->contains(fn (Vendor $vendor) => $this->normalizeName($vendor->vendor_name) === $this->normalizeName($row['vendor_name']));
+                    if ($duplicateName || Vendor::where('vendor_code', $row['proposed_code'])->exists()) {
+                        throw ValidationException::withMessages(['file' => "Vendor {$row['vendor_name']} berubah sejak preview. Unggah ulang file."]);
+                    }
                     Vendor::create(['vendor_code' => $row['proposed_code'], 'vendor_name' => $row['vendor_name'], 'pic_name' => $row['pic_name'], 'is_active' => true]);
                 }
             }
