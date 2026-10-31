@@ -45,6 +45,10 @@ try {
     }
     echo json_encode(['result' => 'posted'], JSON_THROW_ON_ERROR)."\n";
 } catch (ValidationException $exception) {
+    if (array_key_exists('stock', $exception->errors())) {
+        echo json_encode(['result' => 'frozen'], JSON_THROW_ON_ERROR)."\n";
+        exit(0);
+    }
     if (! array_key_exists('quantity', $exception->errors())) {
         throw $exception;
     }

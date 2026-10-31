@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Inventory\CreateStockOpnameSession;
 use App\Actions\Inventory\PostStockIn;
+use App\Actions\Inventory\RecordOpnameCount;
 use App\Actions\OpeningBalance\SaveOpeningBalanceBatch;
 use App\Data\StockPostingData;
 use App\Data\StockPostingLineData;
@@ -15,6 +17,7 @@ use App\Models\StockBalance;
 use App\Models\StockBucket;
 use App\Models\StockItemLocation;
 use App\Models\StockLot;
+use App\Models\StockOpnameLine;
 use App\Models\StockTransaction;
 use App\Models\Unit;
 use App\Models\User;
@@ -136,6 +139,68 @@ class MySqlStockConcurrencyTest extends TestCase
             $this->assertSame(1, StockBucket::count());
             $this->assertSame('2.0000', StockBalance::sole()->quantity);
             $this->assertSame(2, StockTransaction::count());
+        } finally {
+            foreach ($workers as $worker) {
+                if ($worker->isRunning()) {
+                    $worker->stop();
+                }
+            }
+            if (is_file($gate)) {
+                unlink($gate);
+            }
+        }
+    }
+
+    public function test_posting_racing_a_count_submit_never_slips_past_the_freeze(): void
+    {
+        if (DB::getDriverName() !== 'mysql' || getenv('STOCK_POSTING_MYSQL_ISOLATED') !== '1') {
+            $this->markTestSkipped('Requires explicitly provisioned isolated consignment_testing MySQL DB and STOCK_POSTING_MYSQL_ISOLATED=1; no database was touched.');
+        }
+        $this->assertSame('consignment_testing', DB::connection()->getDatabaseName());
+        $this->artisan('migrate:fresh', ['--force' => true])->assertSuccessful();
+        $this->seed(MasterDataSeeder::class);
+        $admin = User::factory()->admin()->create();
+        $warehouse = User::factory()->warehouse()->create();
+        $location = Location::firstOrFail();
+        $item = Item::create(['item_code' => 'OPNAME-RACE', 'part_number' => 'OPNAME-RACE', 'item_name' => 'Opname race', 'ownership_type' => 'STOCK', 'tracking_type' => 'QUANTITY', 'unit_id' => Unit::firstOrFail()->id, 'minimum_stock' => '0.0000']);
+        StockItemLocation::create(['item_id' => $item->id, 'location_id' => $location->id]);
+        InventoryPeriod::create(['cutoff_at' => CarbonImmutable::now('UTC')->subDay(), 'status' => 'ACTIVE']);
+        app(PostStockIn::class)->handle(new StockPostingData(StockTransactionType::ManualReceipt, 'race_receipt', (string) Str::uuid(), CarbonImmutable::now('UTC'), $admin->id, (string) Str::uuid(), null, [new StockPostingLineData($item->id, null, $location->id, StockDirection::In, '5.0000')]));
+        $session = app(CreateStockOpnameSession::class)->handle(['scope_type' => 'PARTIAL', 'bucket_ids' => [StockBucket::firstOrFail()->id]], $admin);
+        app(RecordOpnameCount::class)->handle($session->lines()->firstOrFail(), '2', $warehouse);
+
+        $gate = sys_get_temp_dir().DIRECTORY_SEPARATOR.'opname-race-'.Str::uuid();
+        $connection = config('database.connections.mysql');
+        $env = ['APP_ENV' => 'testing', 'APP_KEY' => config('app.key'), 'DB_CONNECTION' => 'mysql', 'DB_DATABASE' => 'consignment_testing', 'DB_HOST' => $connection['host'], 'DB_PORT' => (string) $connection['port'], 'DB_USERNAME' => $connection['username'], 'DB_PASSWORD' => $connection['password'], 'DB_SOCKET' => $connection['unix_socket'] ?? '', 'DB_URL' => '', 'STOCK_POSTING_MYSQL_ISOLATED' => '1'];
+        $poster = new Process([PHP_BINARY, base_path('tests/Support/stock-posting-worker.php')], base_path(), $env);
+        $poster->setInput(json_encode(['gate' => $gate, 'actor' => $admin->id, 'item' => $item->id, 'location' => $location->id, 'direction' => 'out'], JSON_THROW_ON_ERROR));
+        $submitter = new Process([PHP_BINARY, base_path('tests/Support/opname-submit-worker.php')], base_path(), $env);
+        $submitter->setInput(json_encode(['gate' => $gate, 'session' => $session->id, 'warehouse' => $warehouse->id], JSON_THROW_ON_ERROR));
+        $workers = [$poster, $submitter];
+        try {
+            foreach ($workers as $worker) {
+                $worker->setTimeout(30);
+                $worker->start();
+            }
+            $deadline = microtime(true) + 15;
+            while (! str_contains($poster->getOutput(), 'READY') || ! str_contains($submitter->getOutput(), 'READY')) {
+                if (microtime(true) > $deadline || ! $poster->isRunning() || ! $submitter->isRunning()) {
+                    $this->fail('Workers failed to reach barrier: '.$poster->getErrorOutput().$submitter->getErrorOutput());
+                }
+                usleep(10000);
+            }
+            file_put_contents($gate, 'go');
+            $results = [];
+            foreach ($workers as $worker) {
+                $this->assertSame(0, $worker->wait(), $worker->getErrorOutput());
+                $lines = explode("\n", trim($worker->getOutput()));
+                $results[] = json_decode(end($lines), true, flags: JSON_THROW_ON_ERROR)['result'];
+            }
+            $this->assertSame('submitted', $results[1], $submitter->getOutput());
+            $snapshot = StockOpnameLine::firstOrFail()->system_quantity;
+            // Either the posting landed before the snapshot (4) or it saw the freeze (5, balance still 5).
+            $this->assertSame(StockBalance::sole()->quantity, $snapshot, 'The snapshot must equal the final balance: no posting may land after the freeze.');
+            $this->assertContains([$results[0], $snapshot], [['posted', '4.0000'], ['frozen', '5.0000']]);
         } finally {
             foreach ($workers as $worker) {
                 if ($worker->isRunning()) {

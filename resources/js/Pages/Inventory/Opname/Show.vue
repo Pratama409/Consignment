@@ -31,6 +31,7 @@ const recount = (line) => router.post(line.recount_url, {}, { preserveScroll: tr
             <button v-if="can.submit" type="button" class="button button--primary" :disabled="!allCounted" @click="submit">Kirim hasil hitung</button>
             <button v-if="can.approve" type="button" class="button button--primary" @click="approve">Setujui hasil</button>
             <button v-if="can.close" type="button" class="button button--primary" @click="close">Tutup sesi</button>
+            <a v-if="isAdmin" :href="urls.report" class="button button--secondary">Laporan</a>
             <button v-if="can.cancel" type="button" class="button button--danger" @click="cancel">Batalkan sesi</button>
         </div>
         <section class="surface-card">

@@ -94,6 +94,7 @@ Route::middleware(['auth', EnsureActiveUser::class])->group(function () {
     Route::post('/inventory/opname', [StockOpnameController::class, 'store'])->name('stock-opname.store');
     Route::get('/inventory/opname/{session}', [StockOpnameController::class, 'show'])->whereUuid('session')->name('stock-opname.show');
     Route::put('/inventory/opname/{session}/lines/{line}/count', [StockOpnameController::class, 'count'])->whereUuid(['session', 'line'])->name('stock-opname.count');
+    Route::get('/inventory/opname/{session}/report', [StockOpnameController::class, 'report'])->whereUuid('session')->name('stock-opname.report');
     Route::post('/inventory/opname/{session}/submit', [StockOpnameController::class, 'submit'])->whereUuid('session')->name('stock-opname.submit');
     Route::post('/inventory/opname/{session}/approve', [StockOpnameController::class, 'approve'])->whereUuid('session')->name('stock-opname.approve');
     Route::post('/inventory/opname/{session}/close', [StockOpnameController::class, 'close'])->whereUuid('session')->name('stock-opname.close');

@@ -95,8 +95,31 @@ class StockOpnameController extends Controller
             ],
             'urls' => [
                 'index' => route('stock-opname.index'), 'submit' => route('stock-opname.submit', $session), 'approve' => route('stock-opname.approve', $session),
-                'close' => route('stock-opname.close', $session), 'cancel' => route('stock-opname.cancel', $session),
+                'close' => route('stock-opname.close', $session), 'cancel' => route('stock-opname.cancel', $session), 'report' => route('stock-opname.report', $session),
             ],
+        ]);
+    }
+
+    public function report(Request $request, StockOpnameSession $session, OpnameMovementLog $log)
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+        $session->load(['creator', 'counter', 'approver', 'lines.bucket' => fn ($query) => $query->with(StockBucket::IDENTITY), 'lines.session']);
+        $person = fn ($user) => $user === null ? null : ['name' => $user->name, 'position' => $user->position];
+
+        return Inertia::render('Inventory/Opname/Report', [
+            'session' => [
+                'number' => $session->session_no, 'scope' => $session->scope_type->value, 'cycle_month' => $session->cycle_month, 'status' => $session->status->value, 'note' => $session->note,
+                'creator' => $person($session->creator), 'counter' => $person($session->counter), 'approver' => $person($session->approver),
+                'submitted_at' => $session->submitted_at?->timezone('Asia/Makassar')->format('d/m/Y H:i'), 'approved_at' => $session->approved_at?->timezone('Asia/Makassar')->format('d/m/Y H:i'),
+                'completed_at' => $session->completed_at?->timezone('Asia/Makassar')->format('d/m/Y H:i'),
+            ],
+            'lines' => $session->lines->map(fn (StockOpnameLine $line) => [
+                'item' => $this->itemLabel($line->bucket), 'vendor' => $line->bucket->vendorItem?->vendor?->vendor_name, 'location' => $line->bucket->location->location_code,
+                'system_quantity' => $line->system_quantity, 'counted_quantity' => $line->counted_quantity, 'difference' => $line->difference(), 'state' => $line->state(),
+                'movements' => $log->forLine($line),
+            ])->values(),
+            'back_url' => route('stock-opname.show', $session),
+            'printed_at' => now()->timezone('Asia/Makassar')->format('d/m/Y H:i'),
         ]);
     }
 
