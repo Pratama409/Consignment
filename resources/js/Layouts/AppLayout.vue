@@ -4,6 +4,7 @@ import { router, usePage } from "@inertiajs/vue3";
 import AppIcon from "../Components/AppIcon.vue";
 import AppSidebar from "../Components/AppSidebar.vue";
 import BaseDialog from "../Components/BaseDialog.vue";
+import ThemeToggle from "../Components/ui/ThemeToggle.vue";
 
 const page = usePage();
 const navigationOpen = ref(false);
@@ -79,9 +80,12 @@ onBeforeUnmount(() => {
                         }}</strong>
                     </div>
                 </div>
-                <span class="workspace-label"
-                    ><AppIcon name="warehouse" /> Consignment Inventory</span
-                >
+                <div class="workspace-bar__right">
+                    <span class="workspace-label"
+                        ><AppIcon name="warehouse" /> Consignment Inventory</span
+                    >
+                    <ThemeToggle />
+                </div>
             </header>
             <main id="main-content" class="workspace-main" tabindex="-1">
                 <div

@@ -34,6 +34,13 @@ secara eksplisit: `php artisan db:seed --class=DemoDataSeeder`. Akun demo
 Data demo juga memuat satu sesi Stock Opname `FULL` yang masih berstatus
 `COUNTING` tanpa hitungan, supaya Warehouse dapat mulai menghitung saat demo.
 
+Dashboard menampilkan analitik dari data kuantitas nyata di ledger: stok di bawah
+minimum, stok kosong, antrean refill dan pengadaan, pergerakan IN/OUT 30 hari, dan
+komposisi stok. Nilai rupiah, ITO, dan umur komponen sengaja tidak ditampilkan
+karena sistem belum menyimpan harga dan riwayat komponen. Tema terang atau gelap
+dipilih lewat tombol di bilah atas dan diingat di browser; font Plus Jakarta Sans
+dipasang lokal. Vendor hanya melihat angkanya sendiri.
+
 Jangan menjalankan migration pada database utama atau production tanpa backup,
 maintenance window, dan instruksi eksplisit. Pengujian MySQL harus memakai
 database `consignment_testing`; SQLite `:memory:` dipakai oleh test default.
